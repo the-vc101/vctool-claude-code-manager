@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { statCommand } from './commands/stat';
+import { backupCommand } from './commands/backup';
 
 const program = new Command();
 
@@ -17,5 +18,10 @@ program
   .option('-w, --width <number>', 'Maximum display width', '80')
   .option('--sort-by <method>', 'Sort method: ascii, size, +ascii, -ascii, +size, -size', 'ascii')
   .action(statCommand);
+
+program
+  .command('backup')
+  .description('Backup Claude config file (~/.claude.json)')
+  .action(backupCommand);
 
 program.parse();

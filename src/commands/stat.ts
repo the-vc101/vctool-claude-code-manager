@@ -31,19 +31,7 @@ function lpad(str: string, length: number, padChar: string = '0'): string {
 
 function findClaudeDataFile(): string | null {
   const homeDir = os.homedir();
-  const files = fs.readdirSync(homeDir);
-  
-  const claudeFiles = files.filter(file => 
-    file.startsWith('.claude-') && file.endsWith('.json')
-  );
-  
-  if (claudeFiles.length === 0) {
-    return null;
-  }
-  
-  // Return the most recent file
-  claudeFiles.sort((a, b) => b.localeCompare(a));
-  return path.join(homeDir, claudeFiles[0]);
+  return path.join(homeDir, ".claude.json");
 }
 
 function parseSortBy(sortBy: string): { method: 'ascii' | 'size'; ascending: boolean } {
