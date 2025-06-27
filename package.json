@@ -1,13 +1,31 @@
 {
-  "name": "claude-code-manager",
+  "name": "vctool-claude-code-manager",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A CLI tool to assist with Claude Code vibe coding workflows",
+  "main": "dist/index.js",
+  "bin": {
+    "vctool": "./dist/cli.js"
+  },
   "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts",
+    "start": "node dist/cli.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["claude-code", "cli", "vibe-coding", "productivity", "ai-assisted-coding"],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.12.1"
+  "packageManager": "pnpm@10.12.1",
+  "dependencies": {
+    "commander": "^12.0.0",
+    "chalk": "^4.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
