@@ -1,4 +1,4 @@
-# VCTool - Claude Code Manager
+# Claude Code Manager (CCM)
 
 A CLI tool to assist with Claude Code vibe coding workflows, providing utilities to analyze and manage your Claude Code sessions.
 
@@ -39,12 +39,24 @@ npm install -g vctool-claude-code-manager
 Display detailed statistics about your Claude Code sessions:
 
 ```bash
-vctool stat
+ccm stat
 ```
 
 #### Options
 
 - `-w, --width <number>`: Set maximum display width (default: 80)
+- `--sort-by <method>`: Sort method - ascii, size, +ascii, -ascii, +size, -size (default: ascii)
+
+#### Sorting Examples
+
+```bash
+ccm stat --sort-by ascii     # Sort by project path alphabetically (default)
+ccm stat --sort-by size      # Sort by project size
+ccm stat --sort-by +ascii    # Sort by path ascending
+ccm stat --sort-by -ascii    # Sort by path descending  
+ccm stat --sort-by +size     # Sort by size ascending
+ccm stat --sort-by -size     # Sort by size descending
+```
 
 #### Example Output
 
@@ -62,14 +74,15 @@ Project: /Users/username/my-project
 
 ## Commands
 
-### `vctool stat`
+### `ccm stat`
 
 Analyzes your Claude Code history file (typically `~/.claude-YYYY-MM-DDTHH:mm:ss+timezone.json`) and displays:
 
-- Projects sorted by total data size
+- Projects sorted by path (ASCII) or size based on `--sort-by` parameter
 - Number of history entries per project
 - Truncated display of each history item
 - Formatted output with colors and indexing
+- Configurable sorting with ascending/descending order support
 
 ## Development
 
