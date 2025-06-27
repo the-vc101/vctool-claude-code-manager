@@ -80,22 +80,47 @@ export function statCommand(options: { width?: string }) {
       })
       .sort((a, b) => b.totalSize - a.totalSize);
     
-    // Display results
-    projects.forEach(project => {
-      console.log('──────────────────────────────────────────────────');
-      console.log(chalk.cyan(`Project: ${project.path}`));
-      console.log(chalk.gray(`  - TOTAL SIZE: ${project.totalSize} bytes`));
-      console.log(chalk.gray(`  - History Details (${project.historyItems.length} entries):`));
+    // Display results with clean professional styling
+    projects.forEach((project, projectIndex) => {
+      // Clean separator
+      console.log('─'.repeat(width));
       
+      // Project header with sequential numbering
+      const projectNumber = lpad((projectIndex + 1).toString(), 2, '0');
+      console.log(chalk.bold.cyan(`Project ${projectNumber}: ${project.path}`));
+      
+      // Size display with clean formatting
+      const sizeKB = (project.totalSize / 1024).toFixed(2);
+      const sizeMB = (project.totalSize / (1024 * 1024)).toFixed(2);
+      const sizeDisplay = project.totalSize > 1024 * 1024 
+        ? `${sizeMB} MB` 
+        : project.totalSize > 1024 
+          ? `${sizeKB} KB` 
+          : `${project.totalSize} bytes`;
+      
+      // Simple progress indicator using dots
+      const maxSize = Math.max(...projects.map(p => p.totalSize));
+      const sizeRatio = project.totalSize / maxSize;
+      const barLength = 20;
+      const filledLength = Math.floor(barLength * sizeRatio);
+      const sizeBar = '▓'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
+      
+      console.log(chalk.white(`  TOTAL SIZE: ${chalk.bold(sizeDisplay)}`));
+      console.log(chalk.white(`  History Details (${chalk.bold(project.historyItems.length)} entries):`));
+      console.log();
+
+      // Clean history items without indicators
       project.historyItems.forEach((item, index) => {
         const lineNumber = lpad((index + 1).toString(), 2, '0');
         const content = item.display
           .replace(/\n/g, ' ')
-          .substring(0, width > 3 ? width - 3 : width);
-        const truncated = item.display.replace(/\n/g, ' ').length > width - 3 ? '...' : '';
+          .substring(0, width > 6 ? width - 6 : width);
+        const truncated = item.display.replace(/\n/g, ' ').length > width - 6 ? chalk.dim('...') : '';
         
-        console.log(`  ${chalk.yellow(lineNumber)}. ${content}${chalk.gray(truncated)}`);
+        console.log(`  ${lineNumber}. ${content}${truncated}`);
       });
+      
+      console.log();
     });
     
   } catch (error) {
