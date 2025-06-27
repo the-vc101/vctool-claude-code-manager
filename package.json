@@ -1,6 +1,6 @@
 {
   "name": "vctool-claude-code-manager",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A CLI tool to assist with Claude Code vibe coding workflows",
   "main": "dist/index.js",
   "bin": {
