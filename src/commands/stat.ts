@@ -46,8 +46,26 @@ function findClaudeDataFile(): string | null {
   return path.join(homeDir, claudeFiles[0]);
 }
 
-export function statCommand(options: { width?: string }) {
+function parseSortBy(sortBy: string): { method: 'ascii' | 'size'; ascending: boolean } {
+  const trimmed = sortBy.trim();
+  
+  if (trimmed.startsWith('+')) {
+    const method = trimmed.slice(1) as 'ascii' | 'size';
+    return { method: method === 'ascii' || method === 'size' ? method : 'ascii', ascending: true };
+  }
+  
+  if (trimmed.startsWith('-')) {
+    const method = trimmed.slice(1) as 'ascii' | 'size';
+    return { method: method === 'ascii' || method === 'size' ? method : 'ascii', ascending: false };
+  }
+  
+  const method = trimmed as 'ascii' | 'size';
+  return { method: method === 'ascii' || method === 'size' ? method : 'ascii', ascending: true };
+}
+
+export function statCommand(options: { width?: string; sortBy?: string }) {
   const width = parseInt(options.width || '80', 10);
+  const { method, ascending } = parseSortBy(options.sortBy || 'ascii');
   
   try {
     const dataFilePath = findClaudeDataFile();
@@ -78,7 +96,13 @@ export function statCommand(options: { width?: string }) {
           historyItems
         };
       })
-      .sort((a, b) => b.totalSize - a.totalSize);
+      .sort((a, b) => {
+        if (method === 'size') {
+          return ascending ? a.totalSize - b.totalSize : b.totalSize - a.totalSize;
+        } else {
+          return ascending ? a.path.localeCompare(b.path) : b.path.localeCompare(a.path);
+        }
+      });
     
     // Display results with clean professional styling
     projects.forEach((project, projectIndex) => {
