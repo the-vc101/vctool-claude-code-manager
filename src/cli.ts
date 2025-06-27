@@ -2,15 +2,20 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import fs from 'fs';
+import path from 'path';
 import { statCommand } from './commands/stat';
 import { backupCommand } from './commands/backup';
+
+const packageJsonPath = path.join(__dirname, '../package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
 const program = new Command();
 
 program
   .name('claude-code-manager')
   .description('A CLI tool to assist with Claude Code vibe coding workflows')
-  .version('1.0.0');
+  .version(packageJson.version);
 
 program
   .command('stat')
