@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { statCommand } from './commands/stat';
 import { backupCommand } from './commands/backup';
+import { slimCommand } from './commands/slim';
 
 const packageJsonPath = path.join(__dirname, '../package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -28,5 +29,12 @@ program
   .command('backup')
   .description('Backup Claude config file (~/.claude.json)')
   .action(backupCommand);
+
+program
+  .command('slim')
+  .description('Remove project entries from Claude config (keeps current directory by default)')
+  .option('--force', 'Skip confirmation prompt')
+  .option('--include-current', 'Also remove current directory from projects')
+  .action(slimCommand);
 
 program.parse();
