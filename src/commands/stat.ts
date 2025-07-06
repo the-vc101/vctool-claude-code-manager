@@ -51,9 +51,10 @@ function parseSortBy(sortBy: string): { method: 'ascii' | 'size'; ascending: boo
   return { method: method === 'ascii' || method === 'size' ? method : 'ascii', ascending: true };
 }
 
-export function statCommand(options: { width?: string; sortBy?: string }) {
+export function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string }) {
   const width = parseInt(options.width || '80', 10);
   const { method, ascending } = parseSortBy(options.sortBy || 'ascii');
+  const historyOrder = options.historyOrder || 'reverse';
   
   try {
     const dataFilePath = findClaudeDataFile();
@@ -122,7 +123,11 @@ export function statCommand(options: { width?: string; sortBy?: string }) {
       console.log();
 
       // Clean history items without indicators
-      project.historyItems.forEach((item, index) => {
+      const orderedHistoryItems = historyOrder === 'reverse' 
+        ? [...project.historyItems].reverse() 
+        : project.historyItems;
+      
+      orderedHistoryItems.forEach((item, index) => {
         const lineNumber = lpad((index + 1).toString(), 2, '0');
         const content = item.display
           .replace(/\n/g, ' ')

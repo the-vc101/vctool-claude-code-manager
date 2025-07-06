@@ -23,6 +23,7 @@ program
   .description('Display Claude Code session statistics')
   .option('-w, --width <number>', 'Maximum display width', '80')
   .option('--sort-by <method>', 'Sort method: ascii, size, +ascii, -ascii, +size, -size', 'ascii')
+  .option('--history-order <order>', 'History order: reverse (newest first), forward (oldest first)', 'reverse')
   .action(statCommand);
 
 program
