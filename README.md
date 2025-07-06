@@ -2,6 +2,11 @@
 
 A CLI tool to assist with Claude Code vibe coding workflows, providing utilities to analyze and manage your Claude Code sessions.
 
+## Links
+
+- **GitHub**: [https://github.com/yourusername/vctool-claude-code-manager](https://github.com/yourusername/vctool-claude-code-manager)
+- **NPM**: [https://www.npmjs.com/package/vctool-claude-code-manager](https://www.npmjs.com/package/vctool-claude-code-manager)
+
 ## Features
 
 - **Session Statistics**: Analyze your Claude Code session history with detailed project breakdowns
@@ -46,6 +51,7 @@ ccm stat
 
 - `-w, --width <number>`: Set maximum display width (default: 80)
 - `--sort-by <method>`: Sort method - ascii, size, +ascii, -ascii, +size, -size (default: ascii)
+- `--history-order <order>`: History order - reverse (newest first), forward (oldest first) (default: reverse)
 
 #### Sorting Examples
 
@@ -56,6 +62,10 @@ ccm stat --sort-by +ascii    # Sort by path ascending
 ccm stat --sort-by -ascii    # Sort by path descending  
 ccm stat --sort-by +size     # Sort by size ascending
 ccm stat --sort-by -size     # Sort by size descending
+
+# History ordering examples
+ccm stat --history-order reverse  # Show newest history first (default)
+ccm stat --history-order forward  # Show oldest history first
 ```
 
 #### Example Output
