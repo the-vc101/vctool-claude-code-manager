@@ -4,7 +4,7 @@ A CLI tool to assist with Claude Code vibe coding workflows, providing utilities
 
 ## Links
 
-- **GitHub**: [https://github.com/yourusername/vctool-claude-code-manager](https://github.com/yourusername/vctool-claude-code-manager)
+- **GitHub**: [https://github.com/markshawn2020/vctool-claude-code-manager](https://github.com/markshawn2020/vctool-claude-code-manager)
 - **NPM**: [https://www.npmjs.com/package/vctool-claude-code-manager](https://www.npmjs.com/package/vctool-claude-code-manager)
 
 ## Features
