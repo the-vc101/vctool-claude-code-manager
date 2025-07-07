@@ -19,18 +19,22 @@ ccm stat
 # Focus on current project  
 ccm stat --current --full-message
 
+# Open interactive web analyzer
+ccm stat --analyzer
+
 # Analyze your usage and costs
 ccm usage daily --breakdown
 ```
 
 ## Features
 
-- **Session Statistics**: Analyze your Claude Code session history with detailed project breakdowns
-- **Project Tracking**: View all projects and their interaction history  
-- **Current Project Focus**: Filter analysis to show only your current working project
-- **Full Message Display**: View complete conversation history without truncation
-- **Usage Analysis**: Comprehensive token usage and cost analysis (wrapper for ccusage)
-- **Formatted Output**: Clean, readable output with color coding and flexible display options
+- **🔍 Interactive Web Analyzer**: Modern web-based interface with treemap visualization (like webpack bundle analyzer)
+- **📊 Session Statistics**: Analyze your Claude Code session history with detailed project breakdowns
+- **📁 Project Tracking**: View all projects and their interaction history  
+- **🎯 Current Project Focus**: Filter analysis to show only your current working project
+- **📝 Full Message Display**: View complete conversation history without truncation
+- **💰 Usage Analysis**: Comprehensive token usage and cost analysis (wrapper for ccusage)
+- **🎨 Formatted Output**: Clean, readable output with color coding and flexible display options
 
 ## Installation
 
@@ -118,6 +122,12 @@ ccm stat --width 120 --sort-by -size --history-order forward
 ccm stat --analyzer               # Opens interactive analyzer in browser
 ccm stat --current --analyzer     # Analyze only current project interactively
 ```
+
+**Web Analyzer Interface:**
+
+![Claude Code Session Analyzer](![](https://poketto.oss-cn-hangzhou.aliyuncs.com/b2c8ac37e1ebb97e98507a2e9f94fd18.png?x-oss-process=image/resize,w_800/quality,q_100/rotate,0))
+
+*Interactive web-based analyzer showing project statistics, size distribution, and treemap visualization*
 
 #### Example Output
 
