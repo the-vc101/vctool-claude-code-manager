@@ -125,7 +125,7 @@ ccm stat --current --analyzer     # Analyze only current project interactively
 
 **Web Analyzer Interface:**
 
-![Claude Code Session Analyzer](![](https://poketto.oss-cn-hangzhou.aliyuncs.com/b2c8ac37e1ebb97e98507a2e9f94fd18.png?x-oss-process=image/resize,w_800/quality,q_100/rotate,0))
+![Claude Code Session Analyzer](https://poketto.oss-cn-hangzhou.aliyuncs.com/b2c8ac37e1ebb97e98507a2e9f94fd18.png?x-oss-process=image/resize,w_800/quality,q_100/rotate,0)
 
 *Interactive web-based analyzer showing project statistics, size distribution, and treemap visualization*
 
