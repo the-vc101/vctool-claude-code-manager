@@ -10,15 +10,13 @@ A CLI tool to assist with Claude Code vibe coding workflows, providing utilities
 ## Quick Start
 
 ```bash
-# Install and link locally
-git clone https://github.com/markshawn2020/vctool-claude-code-manager
-cd vctool-claude-code-manager
-pnpm install && pnpm build && pnpm link
+# Install globally
+npm install -g vctool-claude-code-manager
 
 # View all your Claude Code projects
 ccm stat
 
-# Focus on current project
+# Focus on current project  
 ccm stat --current --full-message
 
 # Analyze your usage and costs
@@ -36,27 +34,15 @@ ccm usage daily --breakdown
 
 ## Installation
 
-### Local Development
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   pnpm install
-   ```
-3. Build the project:
-   ```bash
-   pnpm run build
-   ```
-4. Link for global usage:
-   ```bash
-   npm link
-   ```
-
-### From NPM (when published)
-
 ```bash
 npm install -g vctool-claude-code-manager
 ```
+
+## Requirements
+
+- Node.js >= 18.0.0
+- Claude Code installed and configured
+- ccusage package (automatically installed via npx when using `ccm usage`)
 
 ## Usage
 
@@ -260,38 +246,9 @@ Top Usage Days:
 3. 2025-01-08: $1.75 (25K tokens)
 ```
 
-## Development
+## Contributing
 
-### Project Structure
-
-```
-src/
-├── cli.ts              # Main CLI entry point
-├── commands/
-│   ├── stat.ts        # Statistics command implementation
-│   ├── backup.ts      # Backup command implementation
-│   ├── slim.ts        # Slim command implementation
-│   └── usage.ts       # Usage command implementation (ccusage wrapper)
-└── utils/             # Utility functions (future expansion)
-```
-
-### Scripts
-
-- `pnpm run build`: Compile TypeScript to JavaScript in `dist/`
-- `pnpm run dev`: Run in development mode with ts-node
-- `pnpm run start`: Run the compiled version
-
-### Adding New Commands
-
-1. Create a new file in `src/commands/`
-2. Export a command function
-3. Register it in `src/cli.ts`
-
-## Requirements
-
-- Node.js >= 18.0.0
-- Claude Code installed and configured
-- ccusage package (automatically installed via npx when using `ccm usage`)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution guidelines.
 
 ## License
 
