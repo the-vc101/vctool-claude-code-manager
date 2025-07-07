@@ -11,6 +11,7 @@ A CLI tool to assist with Claude Code vibe coding workflows, providing utilities
 
 - **Session Statistics**: Analyze your Claude Code session history with detailed project breakdowns
 - **Project Tracking**: View all projects and their interaction history
+- **Usage Analysis**: Comprehensive token usage and cost analysis (wrapper for ccusage)
 - **Formatted Output**: Clean, readable output with color coding and truncation options
 
 ## Installation
@@ -94,6 +95,36 @@ Analyzes your Claude Code history file (typically `~/.claude-YYYY-MM-DDTHH:mm:ss
 - Formatted output with colors and indexing
 - Configurable sorting with ascending/descending order support
 
+### `ccm usage`
+
+Analyzes Claude Code token usage and costs (wrapper for ccusage):
+
+```bash
+ccm usage                    # Daily report (default)
+ccm usage daily              # Daily token usage and costs
+ccm usage monthly            # Monthly aggregated report
+ccm usage session            # Usage by conversation session
+ccm usage blocks             # 5-hour billing windows
+ccm usage blocks --live      # Real-time usage dashboard
+```
+
+#### Options
+
+- `--since <date>`: Start date filter (format: YYYYMMDD)
+- `--until <date>`: End date filter (format: YYYYMMDD)
+- `--json`: Output in JSON format
+- `--breakdown`: Show per-model cost breakdown
+- `--offline`: Use offline mode (cached pricing data)
+- `--live`: Real-time dashboard (use with blocks subcommand)
+
+#### Examples
+
+```bash
+ccm usage daily --since 20250525 --until 20250530
+ccm usage monthly --json --breakdown
+ccm usage blocks --live
+```
+
 ## Development
 
 ### Project Structure
@@ -102,7 +133,10 @@ Analyzes your Claude Code history file (typically `~/.claude-YYYY-MM-DDTHH:mm:ss
 src/
 ├── cli.ts              # Main CLI entry point
 ├── commands/
-│   └── stat.ts        # Statistics command implementation
+│   ├── stat.ts        # Statistics command implementation
+│   ├── backup.ts      # Backup command implementation
+│   ├── slim.ts        # Slim command implementation
+│   └── usage.ts       # Usage command implementation (ccusage wrapper)
 └── utils/             # Utility functions (future expansion)
 ```
 
@@ -122,6 +156,7 @@ src/
 
 - Node.js >= 18.0.0
 - Claude Code installed and configured
+- ccusage package (automatically installed via npx when using `ccm usage`)
 
 ## License
 
