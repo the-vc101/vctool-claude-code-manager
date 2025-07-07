@@ -7,12 +7,32 @@ A CLI tool to assist with Claude Code vibe coding workflows, providing utilities
 - **GitHub**: [https://github.com/markshawn2020/vctool-claude-code-manager](https://github.com/markshawn2020/vctool-claude-code-manager)
 - **NPM**: [https://www.npmjs.com/package/vctool-claude-code-manager](https://www.npmjs.com/package/vctool-claude-code-manager)
 
+## Quick Start
+
+```bash
+# Install and link locally
+git clone https://github.com/markshawn2020/vctool-claude-code-manager
+cd vctool-claude-code-manager
+pnpm install && pnpm build && pnpm link
+
+# View all your Claude Code projects
+ccm stat
+
+# Focus on current project
+ccm stat --current --full-message
+
+# Analyze your usage and costs
+ccm usage daily --breakdown
+```
+
 ## Features
 
 - **Session Statistics**: Analyze your Claude Code session history with detailed project breakdowns
-- **Project Tracking**: View all projects and their interaction history
+- **Project Tracking**: View all projects and their interaction history  
+- **Current Project Focus**: Filter analysis to show only your current working project
+- **Full Message Display**: View complete conversation history without truncation
 - **Usage Analysis**: Comprehensive token usage and cost analysis (wrapper for ccusage)
-- **Formatted Output**: Clean, readable output with color coding and truncation options
+- **Formatted Output**: Clean, readable output with color coding and flexible display options
 
 ## Installation
 
@@ -76,18 +96,71 @@ ccm stat --full-message           # Show full history without truncation
 ccm stat --current --full-message # Show current project with full messages
 ```
 
+#### Usage Examples
+
+**Basic usage - View all projects:**
+```bash
+ccm stat
+```
+
+**Current project only:**
+```bash
+ccm stat --current
+```
+
+**Show full messages without truncation:**
+```bash
+ccm stat --full-message
+```
+
+**Combined options for focused analysis:**
+```bash
+ccm stat --current --full-message --sort-by size
+```
+
+**Large display with detailed sorting:**
+```bash
+ccm stat --width 120 --sort-by -size --history-order forward
+```
+
 #### Example Output
 
+**Standard output (`ccm stat`):**
 ```
-──────────────────────────────────────────────────
-Project: /Users/username/my-project
-  - TOTAL SIZE: 15420 bytes
-  - History Details (5 entries):
-  01. Created new React component for user authentication
-  02. Fixed TypeScript errors in login form validation...
-  03. Added unit tests for authentication service
-  04. Refactored user state management with Redux
-  05. Updated documentation for new auth flow
+────────────────────────────────────────────────────────────────────────────────
+Project 01: /Users/username/my-react-app
+  TOTAL SIZE: 15.42 KB
+  History Details (8 entries):
+
+  01. 实现用户登录功能，包含表单验证和错误处理
+  02. 修复TypeScript类型错误，优化组件性能
+  03. 添加单元测试覆盖认证服务相关功能
+  04. 重构状态管理，使用Redux Toolkit替代原生Redux...
+  05. 更新项目文档，补充API接口说明
+  06. 优化打包配置，减小bundle体积
+  07. 集成ESLint和Prettier，统一代码风格
+  08. 部署到生产环境，配置CI/CD流程
+
+────────────────────────────────────────────────────────────────────────────────
+Project 02: /Users/username/data-analysis-tool
+  TOTAL SIZE: 8.95 KB
+  History Details (3 entries):
+
+  01. 创建数据可视化图表组件
+  02. 实现CSV文件导入和解析功能
+  03. 添加数据过滤和排序功能...
+```
+
+**Current project with full messages (`ccm stat --current --full-message`):**
+```
+────────────────────────────────────────────────────────────────────────────────
+Project 01: /Users/username/my-react-app
+  TOTAL SIZE: 15.42 KB
+  History Details (3 entries):
+
+  01. 实现用户登录功能，包含表单验证和错误处理，支持邮箱和用户名两种登录方式，集成JWT认证机制
+  02. 修复TypeScript类型错误，优化组件性能，使用React.memo和useMemo减少不必要的重新渲染
+  03. 添加单元测试覆盖认证服务相关功能，使用Jest和React Testing Library编写测试用例
 ```
 
 ## Commands
@@ -124,12 +197,67 @@ ccm usage blocks --live      # Real-time usage dashboard
 - `--offline`: Use offline mode (cached pricing data)
 - `--live`: Real-time dashboard (use with blocks subcommand)
 
-#### Examples
+#### Usage Examples
 
+**Basic usage analysis:**
 ```bash
-ccm usage daily --since 20250525 --until 20250530
-ccm usage monthly --json --breakdown
-ccm usage blocks --live
+ccm usage                        # Today's usage summary
+ccm usage daily                  # Daily usage report
+ccm usage monthly                # Monthly aggregated report
+```
+
+**Date range analysis:**
+```bash
+ccm usage daily --since 20250101 --until 20250107    # Weekly report
+ccm usage monthly --since 20250101                   # From specific date
+```
+
+**Detailed cost breakdown:**
+```bash
+ccm usage daily --breakdown       # Show per-model costs
+ccm usage monthly --json          # JSON output for processing
+ccm usage session --breakdown     # Session-level analysis
+```
+
+**Real-time monitoring:**
+```bash
+ccm usage blocks --live           # Live usage dashboard
+```
+
+#### Example Output
+
+**Daily usage report (`ccm usage daily`):**
+```
+Claude Code Usage Report - Daily
+Date Range: 2025-01-15 to 2025-01-15
+
+Total Input Tokens: 15,420
+Total Output Tokens: 8,950
+Total Cost: $0.85
+
+Model Breakdown:
+- Claude 3.5 Sonnet: $0.65 (12,300 in, 6,200 out)
+- Claude 3 Haiku: $0.20 (3,120 in, 2,750 out)
+```
+
+**Monthly breakdown (`ccm usage monthly --breakdown`):**
+```
+Claude Code Usage Report - Monthly
+Date Range: 2025-01-01 to 2025-01-31
+
+Total Input Tokens: 485,230
+Total Output Tokens: 298,450
+Total Cost: $24.75
+
+Daily Averages:
+- Input: 15,652 tokens/day
+- Output: 9,627 tokens/day
+- Cost: $0.80/day
+
+Top Usage Days:
+1. 2025-01-15: $2.30 (35K tokens)
+2. 2025-01-22: $1.95 (28K tokens)
+3. 2025-01-08: $1.75 (25K tokens)
 ```
 
 ## Development
