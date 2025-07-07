@@ -1,40 +1,57 @@
 # Claude Code Manager (CCM)
 
-A CLI tool to assist with Claude Code vibe coding workflows, providing utilities to analyze and manage your Claude Code sessions.
+A powerful CLI tool for managing Claude Code workflows with **automatic execution tracking** and analytics.
 
-## Links
-
-- **GitHub**: [https://github.com/markshawn2020/vctool-claude-code-manager](https://github.com/markshawn2020/vctool-claude-code-manager)
-- **NPM**: [https://www.npmjs.com/package/vctool-claude-code-manager](https://www.npmjs.com/package/vctool-claude-code-manager)
-
-## Quick Start
+## ✨ Zero-Config Installation
 
 ```bash
-# Install globally
 npm install -g vctool-claude-code-manager
+```
 
-# View all your Claude Code projects
-ccm stat
+That's it! Start using Claude Code normally and executions will be **automatically tracked**.
 
-# Focus on current project  
+## 🚀 Quick Start
+
+```bash
+# Interactive analyzer with timeline
+ccm stat --analyzer
+
+# Current project statistics  
 ccm stat --current --full-message
 
-# Open interactive web analyzer
-ccm stat --analyzer
+# Check tracking status
+ccm init --check
 
 # Analyze your usage and costs
 ccm usage daily --breakdown
 ```
 
-## Features
+## ⭐ Key Features
 
-- **🔍 Interactive Web Analyzer**: Modern web-based interface with treemap visualization (like webpack bundle analyzer)
-- **📊 Session Statistics**: Analyze your Claude Code session history with detailed project breakdowns
-- **📁 Project Tracking**: View all projects and their interaction history  
-- **🎯 Current Project Focus**: Filter analysis to show only your current working project
-- **📝 Full Message Display**: View complete conversation history without truncation
-- **💰 Usage Analysis**: Comprehensive token usage and cost analysis (wrapper for ccusage)
-- **🎨 Formatted Output**: Clean, readable output with color coding and flexible display options
+### 📈 **Automatic Execution Tracking** ✨
+- **Zero Configuration** - Works immediately after installation  
+- **Timeline Visualization** - Interactive D3.js timeline showing tool usage patterns
+- **Success/Error Tracking** - Visual indicators with green/red color coding
+- **Real-time Filtering** - Filter by tool type (Read, Edit, Bash, etc.) and time period
+- **Privacy First** - All data stored locally in `~/.claude/db.sql`
+
+### 🔍 **Interactive Web Analyzer** 
+- Modern web-based dashboard with three powerful views:
+  - **📊 Overview** - Project statistics and size distribution charts
+  - **🌳 Treemap** - Visual project size comparison (webpack-style)
+  - **📈 Timeline** - Interactive execution pattern analysis with filtering
+- Responsive design supporting desktop and mobile
+
+### 📊 **Session Analytics**
+- Detailed project breakdowns and statistics
+- Full conversation history analysis
+- Current project focus and filtering
+- Comprehensive token usage and cost analysis
+
+### 🛠️ **Project Management**
+- Smart backup and cleanup utilities
+- Project tracking and organization
+- Usage monitoring and optimization
 
 ## Installation
 
@@ -127,7 +144,15 @@ ccm stat --current --analyzer     # Analyze only current project interactively
 
 ![Claude Code Session Analyzer](https://poketto.oss-cn-hangzhou.aliyuncs.com/b2c8ac37e1ebb97e98507a2e9f94fd18.png?x-oss-process=image/resize,w_800/quality,q_100/rotate,0)
 
-*Interactive web-based analyzer showing project statistics, size distribution, and treemap visualization*
+*Interactive web-based analyzer with three views: Overview, Treemap, and Timeline visualization*
+
+### 📈 Timeline Features
+- **Interactive Timeline Chart** - D3.js-powered visualization showing tool execution patterns
+- **Time-based Filtering** - View executions from last 24h, 7 days, 30 days, or all time
+- **Tool-specific Analysis** - Filter by specific tools (Edit, Read, Bash, Grep, etc.)
+- **Execution Status** - Green dots for successful executions, red for errors
+- **Hover Details** - Rich tooltips showing session info, timestamps, and project context
+- **Cross-platform** - Works on all modern browsers with responsive design
 
 #### Example Output
 

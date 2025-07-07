@@ -210,6 +210,65 @@
             text-align: center;
         }
 
+        .timeline-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #2d2d2d;
+            border-radius: 8px;
+        }
+
+        .timeline-controls select {
+            padding: 8px 12px;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .timeline-controls select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        #timeline-chart {
+            height: 500px;
+            background: #2d2d2d;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .timeline-axis {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .timeline-dot {
+            r: 4;
+            cursor: pointer;
+            transition: r 0.2s;
+        }
+
+        .timeline-dot:hover {
+            r: 6;
+        }
+
+        .timeline-dot.success {
+            fill: #10b981;
+        }
+
+        .timeline-dot.error {
+            fill: #ef4444;
+        }
+
+        .timeline-line {
+            stroke: #667eea;
+            stroke-width: 2;
+            fill: none;
+        }
+
         @media (max-width: 768px) {
             .container {
                 flex-direction: column;
@@ -226,6 +285,10 @@
             
             .stats-grid {
                 grid-template-columns: 1fr;
+            }
+            
+            .timeline-controls {
+                flex-direction: column;
             }
         }
     </style>
@@ -264,6 +327,7 @@
             <div class="tabs">
                 <button class="tab active" onclick="showTab('overview')">🏠 Overview</button>
                 <button class="tab" onclick="showTab('treemap')">🌳 Treemap</button>
+                <button class="tab" onclick="showTab('timeline')">📈 Timeline</button>
             </div>
 
             <div class="tab-content">
@@ -273,6 +337,27 @@
                 
                 <div id="treemap" class="tab-panel">
                     <svg id="treemap-svg" width="100%" height="100%"></svg>
+                </div>
+                
+                <div id="timeline" class="tab-panel">
+                    <div class="timeline-controls">
+                        <select id="timeline-filter">
+                            <option value="all">All Tools</option>
+                            <option value="Edit">Edit</option>
+                            <option value="Write">Write</option>
+                            <option value="Read">Read</option>
+                            <option value="Bash">Bash</option>
+                            <option value="Grep">Grep</option>
+                            <option value="Task">Task</option>
+                        </select>
+                        <select id="timeline-period">
+                            <option value="24h">Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                            <option value="30d">Last 30 Days</option>
+                            <option value="all">All Time</option>
+                        </select>
+                    </div>
+                    <div id="timeline-chart"></div>
                 </div>
             </div>
         </div>
@@ -303,6 +388,8 @@
             // Initialize visualizations
             if (tabName === 'treemap') {
                 initTreemap();
+            } else if (tabName === 'timeline') {
+                initTimeline();
             }
         }
 
@@ -502,6 +589,192 @@
                 .style("fill", "black")
                 .style("font-weight", "bold")
                 .style("display", d => (d.x1 - d.x0) > 60 ? "block" : "none");
+        }
+
+        function initTimeline() {
+            const chartContainer = d3.select("#timeline-chart");
+            chartContainer.selectAll("*").remove();
+
+            if (!DATA.executions || DATA.executions.length === 0) {
+                chartContainer.append("div")
+                    .attr("class", "loading")
+                    .text("No execution data available");
+                return;
+            }
+
+            // Set up dimensions
+            const margin = {top: 20, right: 30, bottom: 40, left: 80};
+            const width = 800 - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+
+            const svg = chartContainer.append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // Parse and filter data
+            const executions = DATA.executions.map(d => ({
+                ...d,
+                timestamp: new Date(d.timestamp),
+                success: d.success !== 0
+            }));
+
+            // Set up scales
+            const xScale = d3.scaleTime()
+                .domain(d3.extent(executions, d => d.timestamp))
+                .range([0, width]);
+
+            const tools = [...new Set(executions.map(d => d.tool_name))];
+            const yScale = d3.scaleBand()
+                .domain(tools)
+                .range([0, height])
+                .padding(0.1);
+
+            // Add axes
+            g.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale)
+                    .tickFormat(d3.timeFormat("%H:%M"))
+                    .ticks(8))
+                .attr("class", "timeline-axis");
+
+            g.append("g")
+                .call(d3.axisLeft(yScale))
+                .attr("class", "timeline-axis");
+
+            // Add dots for each execution
+            g.selectAll(".timeline-dot")
+                .data(executions)
+                .enter().append("circle")
+                .attr("class", d => `timeline-dot ${d.success ? 'success' : 'error'}`)
+                .attr("cx", d => xScale(d.timestamp))
+                .attr("cy", d => yScale(d.tool_name) + yScale.bandwidth() / 2)
+                .attr("r", 4)
+                .on("mouseover", function(event, d) {
+                    tooltip.style("display", "block")
+                        .html(`
+                            <strong>${d.tool_name}</strong><br/>
+                            Time: ${d.timestamp.toLocaleString()}<br/>
+                            Session: ${d.session_id.substring(0, 8)}...<br/>
+                            Status: ${d.success ? 'Success' : 'Error'}<br/>
+                            ${d.project_path ? `Project: ${d.project_path}` : ''}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("display", "none");
+                });
+
+            // Add timeline controls event listeners
+            document.getElementById('timeline-filter').addEventListener('change', updateTimeline);
+            document.getElementById('timeline-period').addEventListener('change', updateTimeline);
+        }
+
+        function updateTimeline() {
+            const filter = document.getElementById('timeline-filter').value;
+            const period = document.getElementById('timeline-period').value;
+            
+            // Filter executions based on selected criteria
+            let filteredExecutions = DATA.executions.map(d => ({
+                ...d,
+                timestamp: new Date(d.timestamp),
+                success: d.success !== 0
+            }));
+
+            // Apply tool filter
+            if (filter !== 'all') {
+                filteredExecutions = filteredExecutions.filter(d => d.tool_name === filter);
+            }
+
+            // Apply time period filter
+            const now = new Date();
+            let startTime = new Date(0);
+            
+            switch (period) {
+                case '24h':
+                    startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                    break;
+                case '7d':
+                    startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    break;
+                case '30d':
+                    startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                    break;
+            }
+
+            if (period !== 'all') {
+                filteredExecutions = filteredExecutions.filter(d => d.timestamp >= startTime);
+            }
+
+            // Update visualization with filtered data
+            const chartContainer = d3.select("#timeline-chart");
+            chartContainer.selectAll("*").remove();
+
+            if (filteredExecutions.length === 0) {
+                chartContainer.append("div")
+                    .attr("class", "loading")
+                    .text("No data for selected filters");
+                return;
+            }
+
+            // Rebuild the timeline with filtered data
+            const margin = {top: 20, right: 30, bottom: 40, left: 80};
+            const width = 800 - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+
+            const svg = chartContainer.append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const xScale = d3.scaleTime()
+                .domain(d3.extent(filteredExecutions, d => d.timestamp))
+                .range([0, width]);
+
+            const tools = [...new Set(filteredExecutions.map(d => d.tool_name))];
+            const yScale = d3.scaleBand()
+                .domain(tools)
+                .range([0, height])
+                .padding(0.1);
+
+            g.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale)
+                    .tickFormat(d3.timeFormat("%H:%M"))
+                    .ticks(8))
+                .attr("class", "timeline-axis");
+
+            g.append("g")
+                .call(d3.axisLeft(yScale))
+                .attr("class", "timeline-axis");
+
+            g.selectAll(".timeline-dot")
+                .data(filteredExecutions)
+                .enter().append("circle")
+                .attr("class", d => `timeline-dot ${d.success ? 'success' : 'error'}`)
+                .attr("cx", d => xScale(d.timestamp))
+                .attr("cy", d => yScale(d.tool_name) + yScale.bandwidth() / 2)
+                .attr("r", 4)
+                .on("mouseover", function(event, d) {
+                    tooltip.style("display", "block")
+                        .html(`
+                            <strong>${d.tool_name}</strong><br/>
+                            Time: ${d.timestamp.toLocaleString()}<br/>
+                            Session: ${d.session_id.substring(0, 8)}...<br/>
+                            Status: ${d.success ? 'Success' : 'Error'}<br/>
+                            ${d.project_path ? `Project: ${d.project_path}` : ''}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("display", "none");
+                });
         }
 
 

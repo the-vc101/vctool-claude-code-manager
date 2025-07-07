@@ -67,14 +67,54 @@ async function generateAnalyzer(projects: ProcessedProject[]): Promise<void> {
     process.exit(1);
   }
 
+  // Load Claude execution data from SQLite database
+  let executionData: any[] = [];
+  try {
+    const Database = require('better-sqlite3');
+    const claudeDbPath = path.join(os.homedir(), '.claude', 'db.sql');
+    
+    if (fs.existsSync(claudeDbPath)) {
+      const db = new Database(claudeDbPath, { readonly: true });
+      
+      try {
+        const stmt = db.prepare(`
+          SELECT 
+            session_id,
+            timestamp,
+            tool_name,
+            tool_input,
+            tool_response,
+            project_path,
+            success,
+            error_message,
+            created_at
+          FROM executions 
+          ORDER BY timestamp DESC 
+          LIMIT 1000
+        `);
+        
+        executionData = stmt.all();
+      } catch (err) {
+        console.warn(chalk.yellow('Warning: Could not load execution data from database'));
+        executionData = [];
+      } finally {
+        db.close();
+      }
+    }
+  } catch (error) {
+    console.warn(chalk.yellow('Warning: Could not access Claude execution database'));
+  }
+
   // Prepare data for the analyzer
   const analyzerData = {
     projects: projects,
+    executions: executionData,
     metadata: {
       generatedAt: new Date().toISOString(),
       totalProjects: projects.length,
       totalSize: projects.reduce((sum, p) => sum + p.totalSize, 0),
-      totalEntries: projects.reduce((sum, p) => sum + p.historyItems.length, 0)
+      totalEntries: projects.reduce((sum, p) => sum + p.historyItems.length, 0),
+      totalExecutions: executionData.length
     }
   };
 

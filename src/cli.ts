@@ -8,6 +8,8 @@ import { statCommand } from './commands/stat';
 import { backupCommand } from './commands/backup';
 import { slimCommand } from './commands/slim';
 import { usageCommand } from './commands/usage';
+import { trackCommand } from './commands/track';
+import { initCommand } from './commands/init';
 
 const packageJsonPath = path.join(__dirname, '../package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -53,5 +55,17 @@ program
   .option('--offline', 'Use offline mode (cached pricing data)')
   .option('--live', 'Real-time dashboard (use with blocks subcommand)')
   .action(usageCommand);
+
+program
+  .command('track')
+  .description('Track Claude Code execution (used by hooks)')
+  .action(trackCommand);
+
+program
+  .command('init')
+  .description('Initialize Claude Code tracking (database + hooks)')
+  .option('--force', 'Force reinitialize even if already set up')
+  .option('--check', 'Check current setup status')
+  .action(initCommand);
 
 program.parse();
