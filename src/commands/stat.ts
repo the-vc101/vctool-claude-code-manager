@@ -29,6 +29,10 @@ function lpad(str: string, length: number, padChar: string = '0'): string {
   return str.length < length ? padChar.repeat(length - str.length) + str : str;
 }
 
+function getCurrentDirectory(): string {
+  return process.cwd();
+}
+
 function findClaudeDataFile(): string | null {
   const homeDir = os.homedir();
   return path.join(homeDir, ".claude.json");
@@ -51,7 +55,7 @@ function parseSortBy(sortBy: string): { method: 'ascii' | 'size'; ascending: boo
   return { method: method === 'ascii' || method === 'size' ? method : 'ascii', ascending: true };
 }
 
-export function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string }) {
+export function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string; current?: boolean; fullMessage?: boolean }) {
   const width = parseInt(options.width || '80', 10);
   const { method, ascending } = parseSortBy(options.sortBy || 'ascii');
   const historyOrder = options.historyOrder || 'reverse';
@@ -72,7 +76,15 @@ export function statCommand(options: { width?: string; sortBy?: string; historyO
     }
     
     // Process projects
-    const projects: ProcessedProject[] = Object.entries(data.projects)
+    let projectEntries = Object.entries(data.projects);
+    
+    // Filter for current project if --current flag is set
+    if (options.current) {
+      const currentDir = getCurrentDirectory();
+      projectEntries = projectEntries.filter(([projectPath]) => projectPath === currentDir);
+    }
+    
+    const projects: ProcessedProject[] = projectEntries
       .map(([projectPath, projectData]) => {
         const historyItems = (projectData.history || []).map(item => ({
           display: item.display,
@@ -129,12 +141,20 @@ export function statCommand(options: { width?: string; sortBy?: string; historyO
       
       orderedHistoryItems.forEach((item, index) => {
         const lineNumber = lpad((index + 1).toString(), 2, '0');
-        const content = item.display
-          .replace(/\n/g, ' ')
-          .substring(0, width > 6 ? width - 6 : width);
-        const truncated = item.display.replace(/\n/g, ' ').length > width - 6 ? chalk.dim('...') : '';
         
-        console.log(`  ${lineNumber}. ${content}${truncated}`);
+        if (options.fullMessage) {
+          // Show full message without truncation
+          const content = item.display.replace(/\n/g, ' ');
+          console.log(`  ${lineNumber}. ${content}`);
+        } else {
+          // Show truncated message (existing behavior)
+          const content = item.display
+            .replace(/\n/g, ' ')
+            .substring(0, width > 6 ? width - 6 : width);
+          const truncated = item.display.replace(/\n/g, ' ').length > width - 6 ? chalk.dim('...') : '';
+          
+          console.log(`  ${lineNumber}. ${content}${truncated}`);
+        }
       });
       
       console.log();

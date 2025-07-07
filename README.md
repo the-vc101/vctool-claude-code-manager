@@ -53,6 +53,8 @@ ccm stat
 - `-w, --width <number>`: Set maximum display width (default: 80)
 - `--sort-by <method>`: Sort method - ascii, size, +ascii, -ascii, +size, -size (default: ascii)
 - `--history-order <order>`: History order - reverse (newest first), forward (oldest first) (default: reverse)
+- `--current`: Only show data for the current project
+- `--full-message`: Show full history messages without truncation
 
 #### Sorting Examples
 
@@ -67,6 +69,11 @@ ccm stat --sort-by -size     # Sort by size descending
 # History ordering examples
 ccm stat --history-order reverse  # Show newest history first (default)
 ccm stat --history-order forward  # Show oldest history first
+
+# Current project and full message examples
+ccm stat --current                # Show only current project data
+ccm stat --full-message           # Show full history without truncation
+ccm stat --current --full-message # Show current project with full messages
 ```
 
 #### Example Output
