@@ -61,6 +61,7 @@ ccm stat
 - `--history-order <order>`: History order - reverse (newest first), forward (oldest first) (default: reverse)
 - `--current`: Only show data for the current project
 - `--full-message`: Show full history messages without truncation
+- `--analyzer`: Open interactive web-based analyzer (like webpack bundle analyzer)
 
 #### Sorting Examples
 
@@ -80,6 +81,9 @@ ccm stat --history-order forward  # Show oldest history first
 ccm stat --current                # Show only current project data
 ccm stat --full-message           # Show full history without truncation
 ccm stat --current --full-message # Show current project with full messages
+
+# Interactive analyzer (like webpack bundle analyzer)
+ccm stat --analyzer               # Open web-based interactive analyzer
 ```
 
 #### Usage Examples
@@ -107,6 +111,12 @@ ccm stat --current --full-message --sort-by size
 **Large display with detailed sorting:**
 ```bash
 ccm stat --width 120 --sort-by -size --history-order forward
+```
+
+**Interactive web analyzer:**
+```bash
+ccm stat --analyzer               # Opens interactive analyzer in browser
+ccm stat --current --analyzer     # Analyze only current project interactively
 ```
 
 #### Example Output

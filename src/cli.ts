@@ -27,6 +27,7 @@ program
   .option('--history-order <order>', 'History order: reverse (newest first), forward (oldest first)', 'reverse')
   .option('--current', 'Only show data for the current project')
   .option('--full-message', 'Show full history messages without truncation')
+  .option('--analyzer', 'Open interactive analyzer in browser')
   .action(statCommand);
 
 program

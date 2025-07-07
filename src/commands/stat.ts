@@ -55,7 +55,152 @@ function parseSortBy(sortBy: string): { method: 'ascii' | 'size'; ascending: boo
   return { method: method === 'ascii' || method === 'size' ? method : 'ascii', ascending: true };
 }
 
-export function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string; current?: boolean; fullMessage?: boolean }) {
+async function generateAnalyzer(projects: ProcessedProject[]): Promise<void> {
+  // Read the HTML template
+  const templatePath = path.join(__dirname, '../templates/analyzer.html');
+  let template: string;
+  
+  try {
+    template = fs.readFileSync(templatePath, 'utf8');
+  } catch (error) {
+    console.error(chalk.red('Error: Could not find analyzer template'));
+    process.exit(1);
+  }
+
+  // Prepare data for the analyzer
+  const analyzerData = {
+    projects: projects,
+    metadata: {
+      generatedAt: new Date().toISOString(),
+      totalProjects: projects.length,
+      totalSize: projects.reduce((sum, p) => sum + p.totalSize, 0),
+      totalEntries: projects.reduce((sum, p) => sum + p.historyItems.length, 0)
+    }
+  };
+
+  // Replace the data placeholder with actual data
+  const htmlContent = template.replace('/*DATA_PLACEHOLDER*/', JSON.stringify(analyzerData));
+
+  // Generate output file path
+  const outputDir = os.tmpdir();
+  const outputFile = path.join(outputDir, `claude-code-analyzer-${Date.now()}.html`);
+
+  try {
+    // Write the HTML file
+    fs.writeFileSync(outputFile, htmlContent);
+    
+    console.log(chalk.green('🎉 Claude Code Analyzer generated!'));
+    console.log(chalk.blue(`📄 Report saved to: ${outputFile}`));
+    console.log(chalk.yellow('🌐 Opening in browser...'));
+
+    // Open the file in browser using system commands
+    try {
+      console.log(chalk.blue('🔄 Attempting to open browser...'));
+      
+      const { spawn } = await import('child_process');
+      
+      const commands = [
+        ['open', outputFile], // macOS
+        ['xdg-open', outputFile], // Linux  
+        ['start', '', outputFile], // Windows (empty string for start command)
+      ];
+
+      let opened = false;
+      for (const [cmd, ...args] of commands) {
+        try {
+          console.log(chalk.gray(`   Trying: ${cmd} ${args.join(' ')}`));
+          
+          const child = spawn(cmd, args.filter(arg => arg !== ''), { 
+            stdio: 'ignore', 
+            detached: true,
+            shell: process.platform === 'win32' // Use shell on Windows
+          });
+          
+          // Give the command a moment to start
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          if (child.unref) {
+            child.unref();
+          }
+          
+          console.log(chalk.green(`✅ Browser opened with ${cmd}`));
+          opened = true;
+          break;
+        } catch (err: any) {
+          console.log(chalk.gray(`   ${cmd} failed: ${err?.message || err}`));
+          continue;
+        }
+      }
+
+      if (!opened) {
+        // Try exec as last resort
+        console.log(chalk.blue('🔄 Trying exec commands...'));
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+        
+        const execCommands = [
+          `open "${outputFile}"`, // macOS
+          `xdg-open "${outputFile}"`, // Linux
+          `start "" "${outputFile}"`, // Windows
+        ];
+
+        for (const cmd of execCommands) {
+          try {
+            console.log(chalk.gray(`   Trying exec: ${cmd}`));
+            await execAsync(cmd);
+            console.log(chalk.green(`✅ Browser opened with exec: ${cmd}`));
+            opened = true;
+            break;
+          } catch (err: any) {
+            console.log(chalk.gray(`   exec failed: ${err?.message || err}`));
+            continue;
+          }
+        }
+      }
+
+      if (!opened) {
+        throw new Error('All browser opening strategies failed');
+      }
+
+    } catch (error: any) {
+      console.log(chalk.red(`❌ Failed to open browser: ${error?.message || error}`));
+      console.log(chalk.yellow(`💡 Please manually open this file in your browser:`));
+      console.log(chalk.cyan(`   ${outputFile}`));
+    }
+
+    console.log(chalk.cyan('🔍 Analyzer is ready! Press Ctrl+C to exit'));
+    
+    // Setup cleanup function
+    const cleanup = () => {
+      console.log(chalk.yellow('\n🧹 Cleaning up...'));
+      
+      // Remove the temporary file
+      try {
+        fs.unlinkSync(outputFile);
+        console.log(chalk.green('✅ Temporary file cleaned up'));
+      } catch (error) {
+        // File might already be deleted, ignore error
+      }
+      
+      console.log(chalk.green('👋 Analyzer closed'));
+      process.exit(0);
+    };
+
+    // Handle Ctrl+C gracefully
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+
+    // Keep the process running
+    await new Promise(() => {}); // This will run indefinitely until interrupted
+
+  } catch (error) {
+    console.error(chalk.red(`Error writing analyzer file: ${error}`));
+    process.exit(1);
+  }
+}
+
+export async function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string; current?: boolean; fullMessage?: boolean; analyzer?: boolean }) {
   const width = parseInt(options.width || '80', 10);
   const { method, ascending } = parseSortBy(options.sortBy || 'ascii');
   const historyOrder = options.historyOrder || 'reverse';
@@ -104,6 +249,12 @@ export function statCommand(options: { width?: string; sortBy?: string; historyO
           return ascending ? a.path.localeCompare(b.path) : b.path.localeCompare(a.path);
         }
       });
+    
+    // If analyzer flag is set, generate the analyzer instead of displaying console output
+    if (options.analyzer) {
+      await generateAnalyzer(projects);
+      return;
+    }
     
     // Display results with clean professional styling
     projects.forEach((project, projectIndex) => {
