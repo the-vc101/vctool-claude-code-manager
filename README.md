@@ -194,19 +194,43 @@ Project 01: /Users/username/my-react-app
   03. 添加单元测试覆盖认证服务相关功能，使用Jest和React Testing Library编写测试用例
 ```
 
-## Commands
+## 📋 Complete Command Reference
 
-### `ccm stat`
+### `ccm stat` - Project Analytics
 
-Analyzes your Claude Code history file (typically `~/.claude-YYYY-MM-DDTHH:mm:ss+timezone.json`) and displays:
+Analyzes your Claude Code sessions and provides multiple visualization options:
 
+**Console Output:**
 - Projects sorted by path (ASCII) or size based on `--sort-by` parameter
 - Number of history entries per project
 - Truncated display of each history item
 - Formatted output with colors and indexing
 - Configurable sorting with ascending/descending order support
 
-### `ccm usage`
+**Web Analyzer (`--analyzer`):**
+- **📊 Overview Tab** - Project statistics, size charts, and summaries
+- **🌳 Treemap Tab** - Visual comparison of project sizes (webpack-style)
+- **📈 Timeline Tab** - Interactive execution timeline with filtering
+
+### `ccm init` - Setup & Management
+
+Initialize and manage Claude Code execution tracking:
+
+```bash
+ccm init              # Set up tracking (database + hooks)
+ccm init --check      # Verify current setup status
+ccm init --force      # Force reinitialize
+```
+
+### `ccm track` - Manual Tracking
+
+Internal command used by hooks for logging executions:
+
+```bash
+echo '{"session_id":"test","tool_name":"Read"}' | ccm track
+```
+
+### `ccm usage` - Token Analysis
 
 Analyzes Claude Code token usage and costs (wrapper for ccusage):
 
@@ -291,10 +315,98 @@ Top Usage Days:
 3. 2025-01-08: $1.75 (25K tokens)
 ```
 
-## Contributing
+### `ccm backup` & `ccm slim` - Project Management
+
+Additional utilities for managing your Claude Code environment:
+
+```bash
+ccm backup                    # Backup Claude config file
+ccm slim                      # Clean up old project entries
+ccm slim --force              # Force cleanup without confirmation
+ccm slim --include-current    # Also remove current directory
+```
+
+## 🔧 Setup & Configuration
+
+### Automatic Setup (Recommended)
+```bash
+npm install -g vctool-claude-code-manager
+# That's it! Tracking is automatically configured
+```
+
+### Manual Setup (Advanced)
+```bash
+ccm init                      # Initialize tracking manually
+ccm init --check              # Verify setup status
+```
+
+### Data Storage
+- **Database**: `~/.claude/db.sql` (SQLite, local storage)
+- **Hooks Config**: `~/.claude/settings.json` (auto-configured)
+- **Privacy**: No data sent to external servers
+
+## 🚀 Advanced Usage
+
+### Timeline Analysis Workflows
+```bash
+# Daily development pattern analysis
+ccm stat --analyzer
+# → Click Timeline tab → Select "Last 24 Hours"
+
+# Tool-specific usage patterns  
+ccm stat --analyzer
+# → Click Timeline tab → Filter by "Edit" or "Bash"
+
+# Error pattern investigation
+ccm stat --analyzer  
+# → Timeline shows red dots for failed executions
+```
+
+### Automation & Integration
+```bash
+# Check tracking status in scripts
+ccm init --check && echo "Tracking OK"
+
+# Export data for external analysis
+sqlite3 ~/.claude/db.sql "SELECT * FROM executions" > executions.csv
+```
+
+## 🐛 Troubleshooting
+
+### Timeline Not Showing
+```bash
+pnpm run build              # Rebuild if developing locally
+ccm init --force            # Reinitialize setup
+```
+
+### Tracking Not Working  
+```bash
+ccm init --check            # Check setup status
+ccm init                    # Reconfigure if needed
+```
+
+### Database Issues
+```bash
+ls -la ~/.claude/db.sql     # Verify database exists
+sqlite3 ~/.claude/db.sql "SELECT COUNT(*) FROM executions;"  # Check data
+```
+
+## 📚 Links & Resources
+
+- **GitHub**: [https://github.com/markshawn2020/vctool-claude-code-manager](https://github.com/markshawn2020/vctool-claude-code-manager)
+- **NPM**: [https://www.npmjs.com/package/vctool-claude-code-manager](https://www.npmjs.com/package/vctool-claude-code-manager)
+- **Documentation**: [Claude Tracking Setup Guide](docs/claude-tracking-setup.md)
+
+## 🤝 Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution guidelines.
 
-## License
+## 📄 License
 
 ISC
+
+---
+
+**Made for Claude Code power users** 🚀
+
+> **Tip**: After installation, just use Claude Code normally. Check `ccm stat --analyzer` periodically to discover your development patterns and optimize your workflow!
