@@ -165,11 +165,6 @@
             min-height: 500px;
         }
 
-        #timeline {
-            width: 100%;
-            height: 100%;
-            min-height: 500px;
-        }
 
         .treemap-node {
             stroke: #ffffff;
@@ -183,22 +178,6 @@
         }
 
 
-        .timeline-dot {
-            fill: #667eea;
-            stroke: #333;
-            stroke-width: 2px;
-            cursor: pointer;
-        }
-
-        .timeline-dot:hover {
-            fill: #764ba2;
-            r: 8;
-        }
-
-        .timeline-line {
-            stroke: #444;
-            stroke-width: 2px;
-        }
 
         .tooltip {
             position: absolute;
@@ -285,7 +264,6 @@
             <div class="tabs">
                 <button class="tab active" onclick="showTab('overview')">🏠 Overview</button>
                 <button class="tab" onclick="showTab('treemap')">🌳 Treemap</button>
-                <button class="tab" onclick="showTab('timeline')">⏱️ Timeline</button>
             </div>
 
             <div class="tab-content">
@@ -295,10 +273,6 @@
                 
                 <div id="treemap" class="tab-panel">
                     <svg id="treemap-svg" width="100%" height="100%"></svg>
-                </div>
-                
-                <div id="timeline" class="tab-panel">
-                    <svg id="timeline-svg" width="100%" height="100%"></svg>
                 </div>
             </div>
         </div>
@@ -329,8 +303,6 @@
             // Initialize visualizations
             if (tabName === 'treemap') {
                 initTreemap();
-            } else if (tabName === 'timeline') {
-                initTimeline();
             }
         }
 
@@ -532,71 +504,6 @@
                 .style("display", d => (d.x1 - d.x0) > 60 ? "block" : "none");
         }
 
-        function initTimeline() {
-            const svg = d3.select("#timeline-svg");
-            svg.selectAll("*").remove();
-
-            const width = parseInt(svg.style("width"));
-            const height = parseInt(svg.style("height"));
-
-            // Create timeline data
-            const timelineData = [];
-            let globalIndex = 0;
-            DATA.projects.forEach(project => {
-                project.historyItems.forEach((item, index) => {
-                    timelineData.push({
-                        project: project.path.split('/').pop(),
-                        localIndex: index,
-                        globalIndex: globalIndex++,
-                        size: item.size,
-                        display: item.display,
-                        projectColor: project.path
-                    });
-                });
-            });
-
-            const margin = {top: 20, right: 30, bottom: 40, left: 100};
-            const chartWidth = width - margin.left - margin.right;
-            const chartHeight = height - margin.top - margin.bottom;
-
-            const g = svg.append("g")
-                .attr("transform", `translate(${margin.left},${margin.top})`);
-
-            const x = d3.scaleLinear()
-                .domain([0, d3.max(timelineData, d => d.index)])
-                .range([0, chartWidth]);
-
-            const y = d3.scaleLinear()
-                .domain([0, d3.max(timelineData, d => d.size)])
-                .range([chartHeight, 0]);
-
-            const color = d3.scaleOrdinal(d3.schemeCategory10);
-
-            g.selectAll(".timeline-dot")
-                .data(timelineData)
-                .enter().append("circle")
-                .attr("class", "timeline-dot")
-                .attr("cx", d => x(d.index))
-                .attr("cy", d => y(d.size))
-                .attr("r", 5)
-                .attr("fill", d => color(d.projectColor))
-                .on("mouseover", function(event, d) {
-                    tooltip.style("display", "block")
-                        .html(`<strong>${d.project}</strong><br/>Entry #${d.index + 1}<br/>Size: ${formatBytes(d.size)}<br/>${d.display.substring(0, 100)}...`)
-                        .style("left", (event.pageX + 10) + "px")
-                        .style("top", (event.pageY - 10) + "px");
-                })
-                .on("mouseout", function() {
-                    tooltip.style("display", "none");
-                });
-
-            g.append("g")
-                .attr("transform", `translate(0,${chartHeight})`)
-                .call(d3.axisBottom(x));
-
-            g.append("g")
-                .call(d3.axisLeft(y).tickFormat(formatBytes));
-        }
 
         // Initialize the app
         window.onload = function() {
@@ -607,8 +514,6 @@
         window.addEventListener('resize', function() {
             if (document.querySelector('.tab.active').textContent.includes('Treemap')) {
                 initTreemap();
-            } else if (document.querySelector('.tab.active').textContent.includes('Timeline')) {
-                initTimeline();
             }
         });
     </script>
