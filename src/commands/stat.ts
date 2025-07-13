@@ -466,6 +466,50 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
     
     // If JSON output is requested, export to file and return
     if (options.jsonOutput) {
+      // Handle directory input with auto-naming
+      let outputPath = options.jsonOutput;
+      
+      // Check if the path is a directory
+      let isDirectory = false;
+      try {
+        const stat = fs.lstatSync(outputPath);
+        isDirectory = stat.isDirectory();
+      } catch {
+        // Path doesn't exist, check if it ends with / or looks like a directory
+        isDirectory = outputPath.endsWith('/') || outputPath.endsWith(path.sep);
+      }
+      
+      if (isDirectory) {
+        // Generate filename based on export options
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+        const timeStr = new Date().toISOString().split('T')[1].substring(0, 8).replace(/:/g, '');
+        
+        let filename = 'ccm-export';
+        
+        if (options.current) {
+          const currentDir = getCurrentDirectory();
+          const projectName = path.basename(currentDir);
+          filename += `-${projectName}`;
+        } else {
+          filename += '-all-projects';
+        }
+        
+        if (options.withCc) {
+          filename += '-conversations';
+        } else {
+          filename += '-history';
+        }
+        
+        filename += `-${timestamp}-${timeStr}.json`;
+        
+        // Ensure directory exists
+        if (!fs.existsSync(outputPath)) {
+          fs.mkdirSync(outputPath, { recursive: true });
+        }
+        
+        outputPath = path.join(outputPath, filename);
+        console.log(chalk.blue(`📁 Auto-generated filename: ${filename}`));
+      }
       const exportData = {
         metadata: {
           generatedAt: new Date().toISOString(),
@@ -513,8 +557,8 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
       };
       
       try {
-        fs.writeFileSync(options.jsonOutput, JSON.stringify(exportData, null, 2), 'utf8');
-        console.log(chalk.green(`✅ JSON data exported to: ${options.jsonOutput}`));
+        fs.writeFileSync(outputPath, JSON.stringify(exportData, null, 2), 'utf8');
+        console.log(chalk.green(`✅ JSON data exported to: ${outputPath}`));
         console.log(chalk.blue(`📊 Exported ${exportData.projects.length} projects`));
         if (options.withCc) {
           const totalConversations = exportData.projects.reduce((sum, p) => sum + (p.conversations?.length || 0), 0);
