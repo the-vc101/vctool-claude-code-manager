@@ -7,6 +7,25 @@ interface HistoryItem {
   display: string;
 }
 
+interface SessionMessage {
+  type: string;
+  message?: {
+    role: string;
+    content: string | Array<{
+      type: string;
+      text?: string;
+    }>;
+  };
+  timestamp: string;
+  uuid: string;
+}
+
+interface ConversationPair {
+  userPrompt: string;
+  claudeResponse?: string;
+  timestamp: string;
+}
+
 interface ProjectData {
   history?: HistoryItem[];
   [key: string]: any;
@@ -53,6 +72,114 @@ function parseSortBy(sortBy: string): { method: 'ascii' | 'size'; ascending: boo
   
   const method = trimmed as 'ascii' | 'size';
   return { method: method === 'ascii' || method === 'size' ? method : 'ascii', ascending: true };
+}
+
+function findSessionFiles(projectPath: string): string[] {
+  const homeDir = os.homedir();
+  const encodedPath = projectPath.replace(/\//g, '-');
+  const sessionDir = path.join(homeDir, '.claude', 'projects', encodedPath);
+  
+  try {
+    if (!fs.existsSync(sessionDir)) {
+      return [];
+    }
+    
+    return fs.readdirSync(sessionDir)
+      .filter(file => file.endsWith('.jsonl'))
+      .map(file => path.join(sessionDir, file));
+  } catch (error) {
+    return [];
+  }
+}
+
+function readSessionMessages(filePath: string): SessionMessage[] {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.trim().split('\n');
+    
+    return lines
+      .map(line => {
+        try {
+          return JSON.parse(line) as SessionMessage;
+        } catch {
+          return null;
+        }
+      })
+      .filter((msg): msg is SessionMessage => msg !== null);
+  } catch (error) {
+    return [];
+  }
+}
+
+function extractConversationPairs(projectPath: string): ConversationPair[] {
+  const sessionFiles = findSessionFiles(projectPath);
+  const allMessages: SessionMessage[] = [];
+  
+  // Read all session files and combine messages
+  for (const filePath of sessionFiles) {
+    const messages = readSessionMessages(filePath);
+    allMessages.push(...messages);
+  }
+  
+  // Sort by timestamp
+  allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  
+  const pairs: ConversationPair[] = [];
+  let currentUserPrompt: string | null = null;
+  let currentTimestamp: string | null = null;
+  
+  for (const message of allMessages) {
+    if (message.type === 'user' && message.message?.role === 'user') {
+      // Extract user prompt
+      const content = message.message.content;
+      if (content) {
+        let textContent: string | undefined;
+        
+        if (typeof content === 'string') {
+          textContent = content;
+        } else if (Array.isArray(content) && content.length > 0) {
+          textContent = content.find(c => c.type === 'text')?.text;
+        }
+        
+        if (textContent) {
+          currentUserPrompt = textContent;
+          currentTimestamp = message.timestamp;
+        }
+      }
+    } else if (message.type === 'assistant' && message.message?.role === 'assistant' && currentUserPrompt) {
+      // Extract Claude response
+      const content = message.message.content;
+      if (content) {
+        let textContent: string | undefined;
+        
+        if (typeof content === 'string') {
+          textContent = content;
+        } else if (Array.isArray(content) && content.length > 0) {
+          textContent = content.find(c => c.type === 'text')?.text;
+        }
+        
+        if (textContent) {
+          pairs.push({
+            userPrompt: currentUserPrompt,
+            claudeResponse: textContent,
+            timestamp: currentTimestamp || message.timestamp
+          });
+          currentUserPrompt = null;
+          currentTimestamp = null;
+        }
+      }
+    }
+  }
+  
+  // Add any remaining user prompt without response
+  if (currentUserPrompt && currentTimestamp) {
+    pairs.push({
+      userPrompt: currentUserPrompt,
+      timestamp: currentTimestamp
+    });
+  }
+  
+  return pairs;
 }
 
 async function generateAnalyzer(projects: ProcessedProject[]): Promise<void> {
@@ -240,7 +367,7 @@ async function generateAnalyzer(projects: ProcessedProject[]): Promise<void> {
   }
 }
 
-export async function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string; current?: boolean; fullMessage?: boolean; analyzer?: boolean }) {
+export async function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string; current?: boolean; fullMessage?: boolean; analyzer?: boolean; withCc?: boolean }) {
   const width = parseInt(options.width || '80', 10);
   const { method, ascending } = parseSortBy(options.sortBy || 'ascii');
   const historyOrder = options.historyOrder || 'reverse';
@@ -325,28 +452,63 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
       console.log(chalk.white(`  History Details (${chalk.bold(project.historyItems.length)} entries):`));
       console.log();
 
-      // Clean history items without indicators
-      const orderedHistoryItems = historyOrder === 'reverse' 
-        ? [...project.historyItems].reverse() 
-        : project.historyItems;
-      
-      orderedHistoryItems.forEach((item, index) => {
-        const lineNumber = lpad((index + 1).toString(), 2, '0');
+      if (options.withCc) {
+        // Display conversation pairs with Claude responses
+        const conversationPairs = extractConversationPairs(project.path);
+        const orderedPairs = historyOrder === 'reverse' 
+          ? [...conversationPairs].reverse() 
+          : conversationPairs;
         
-        if (options.fullMessage) {
-          // Show full message without truncation
-          const content = item.display.replace(/\n/g, ' ');
-          console.log(`  ${lineNumber}. ${content}`);
-        } else {
-          // Show truncated message (existing behavior)
-          const content = item.display
-            .replace(/\n/g, ' ')
-            .substring(0, width > 6 ? width - 6 : width);
-          const truncated = item.display.replace(/\n/g, ' ').length > width - 6 ? chalk.dim('...') : '';
+        orderedPairs.forEach((pair, index) => {
+          const lineNumber = lpad((index + 1).toString(), 2, '0');
           
-          console.log(`  ${lineNumber}. ${content}${truncated}`);
-        }
-      });
+          // Display user prompt (replace claude code references with cc)
+          const processedUserPrompt = pair.userPrompt.replace(/claude code/gi, 'cc').replace(/cc\([^)]*\)/gi, 'cc');
+          const userPrompt = options.fullMessage 
+            ? processedUserPrompt.replace(/\n/g, ' ')
+            : processedUserPrompt.replace(/\n/g, ' ').substring(0, width > 10 ? width - 10 : width);
+          const userTruncated = !options.fullMessage && processedUserPrompt.replace(/\n/g, ' ').length > width - 10 ? chalk.dim('...') : '';
+          
+          console.log(chalk.blue(`  ${lineNumber}. 👤 User: ${userPrompt}${userTruncated}`));
+          
+          // Display Claude response if available
+          if (pair.claudeResponse) {
+            const claudeResponse = options.fullMessage
+              ? pair.claudeResponse.replace(/\n/g, ' ')
+              : pair.claudeResponse.replace(/\n/g, ' ').substring(0, width > 10 ? width - 10 : width);
+            const claudeTruncated = !options.fullMessage && pair.claudeResponse.replace(/\n/g, ' ').length > width - 10 ? chalk.dim('...') : '';
+            
+            console.log(chalk.green(`      🤖 CC: ${claudeResponse}${claudeTruncated}`));
+          } else {
+            console.log(chalk.gray(`      🤖 CC: (no response found)`));
+          }
+          
+          console.log(); // Add spacing between conversation pairs
+        });
+      } else {
+        // Original history display logic
+        const orderedHistoryItems = historyOrder === 'reverse' 
+          ? [...project.historyItems].reverse() 
+          : project.historyItems;
+        
+        orderedHistoryItems.forEach((item, index) => {
+          const lineNumber = lpad((index + 1).toString(), 2, '0');
+          
+          if (options.fullMessage) {
+            // Show full message without truncation
+            const content = item.display.replace(/\n/g, ' ');
+            console.log(`  ${lineNumber}. ${content}`);
+          } else {
+            // Show truncated message (existing behavior)
+            const content = item.display
+              .replace(/\n/g, ' ')
+              .substring(0, width > 6 ? width - 6 : width);
+            const truncated = item.display.replace(/\n/g, ' ').length > width - 6 ? chalk.dim('...') : '';
+            
+            console.log(`  ${lineNumber}. ${content}${truncated}`);
+          }
+        });
+      }
       
       console.log();
     });
