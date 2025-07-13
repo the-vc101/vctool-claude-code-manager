@@ -14,6 +14,9 @@ interface SessionMessage {
     content: string | Array<{
       type: string;
       text?: string;
+      name?: string;
+      input?: any;
+      thinking?: string;
     }>;
   };
   timestamp: string;
@@ -128,8 +131,24 @@ function extractConversationPairs(projectPath: string): ConversationPair[] {
   let currentUserPrompt: string | null = null;
   let currentTimestamp: string | null = null;
   
+  let currentAssistantContent: string[] = [];
+  let isCollectingAssistantResponse = false;
+  
   for (const message of allMessages) {
     if (message.type === 'user' && message.message?.role === 'user') {
+      // If we were collecting assistant responses, finalize the previous pair
+      if (currentUserPrompt && currentAssistantContent.length > 0) {
+        pairs.push({
+          userPrompt: currentUserPrompt,
+          claudeResponse: currentAssistantContent.join('\n\n'),
+          timestamp: currentTimestamp || message.timestamp
+        });
+        currentUserPrompt = null;
+        currentTimestamp = null;
+        currentAssistantContent = [];
+        isCollectingAssistantResponse = false;
+      }
+      
       // Extract user prompt
       const content = message.message.content;
       if (content) {
@@ -146,36 +165,58 @@ function extractConversationPairs(projectPath: string): ConversationPair[] {
           currentTimestamp = message.timestamp;
         }
       }
-    } else if (message.type === 'assistant' && message.message?.role === 'assistant' && currentUserPrompt) {
-      // Extract Claude response
+    } else if (message.type === 'assistant' && message.message?.role === 'assistant') {
+      isCollectingAssistantResponse = true;
+      
+      // Extract Claude response content
       const content = message.message.content;
-      if (content) {
-        let textContent: string | undefined;
-        
-        if (typeof content === 'string') {
-          textContent = content;
-        } else if (Array.isArray(content) && content.length > 0) {
-          textContent = content.find(c => c.type === 'text')?.text;
+      if (content && Array.isArray(content)) {
+        for (const item of content) {
+          if (item.type === 'text' && item.text) {
+            currentAssistantContent.push(JSON.stringify({ type: 'text', content: item.text }));
+          } else if (item.type === 'tool_use') {
+            currentAssistantContent.push(JSON.stringify({ 
+              type: 'tool_use', 
+              tool: item.name, 
+              input: item.input 
+            }));
+          } else if (item.type === 'thinking' && (item as any).thinking) {
+            currentAssistantContent.push(JSON.stringify({ 
+              type: 'thinking', 
+              content: (item as any).thinking 
+            }));
+          }
         }
-        
-        if (textContent) {
-          pairs.push({
-            userPrompt: currentUserPrompt,
-            claudeResponse: textContent,
-            timestamp: currentTimestamp || message.timestamp
-          });
-          currentUserPrompt = null;
-          currentTimestamp = null;
-        }
+      } else if (typeof content === 'string') {
+        currentAssistantContent.push(JSON.stringify({ type: 'text', content: content }));
+      }
+    } else if (message.type === 'system') {
+      // Handle system messages
+      if (isCollectingAssistantResponse) {
+        currentAssistantContent.push(JSON.stringify({
+          type: 'system',
+          content: (message as any).content,
+          meta: (message as any).isMeta || false,
+          level: (message as any).level || 'info'
+        }));
+      }
+    } else if (message.type === 'summary') {
+      // Handle summary messages
+      if (isCollectingAssistantResponse) {
+        currentAssistantContent.push(JSON.stringify({
+          type: 'summary',
+          summary: (message as any).summary
+        }));
       }
     }
   }
   
-  // Add any remaining user prompt without response
-  if (currentUserPrompt && currentTimestamp) {
+  // Add any remaining conversation pair
+  if (currentUserPrompt) {
     pairs.push({
       userPrompt: currentUserPrompt,
-      timestamp: currentTimestamp
+      claudeResponse: currentAssistantContent.length > 0 ? currentAssistantContent.join('\n\n') : undefined,
+      timestamp: currentTimestamp || allMessages[allMessages.length - 1]?.timestamp || ''
     });
   }
   
@@ -367,7 +408,7 @@ async function generateAnalyzer(projects: ProcessedProject[]): Promise<void> {
   }
 }
 
-export async function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string; current?: boolean; fullMessage?: boolean; analyzer?: boolean; withCc?: boolean }) {
+export async function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string; current?: boolean; fullMessage?: boolean; analyzer?: boolean; withCc?: boolean; jsonOutput?: string }) {
   const width = parseInt(options.width || '80', 10);
   const { method, ascending } = parseSortBy(options.sortBy || 'ascii');
   const historyOrder = options.historyOrder || 'reverse';
@@ -423,6 +464,69 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
       return;
     }
     
+    // If JSON output is requested, export to file and return
+    if (options.jsonOutput) {
+      const exportData = {
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          totalProjects: projects.length,
+          filters: {
+            current: options.current || false,
+            withCc: options.withCc || false
+          }
+        },
+        projects: projects.map(project => {
+          const projectData: any = {
+            path: project.path,
+            totalSize: project.totalSize,
+            historyItemsCount: project.historyItems.length
+          };
+          
+          if (options.withCc) {
+            const conversationPairs = extractConversationPairs(project.path);
+            const orderedPairs = historyOrder === 'reverse' 
+              ? [...conversationPairs].reverse() 
+              : conversationPairs;
+            
+            projectData.conversations = orderedPairs.map((pair, index) => ({
+              index: index + 1,
+              timestamp: pair.timestamp,
+              userPrompt: pair.userPrompt.replace(/claude code/gi, 'cc').replace(/cc\([^)]*\)/gi, 'cc'),
+              claudeResponse: pair.claudeResponse ? pair.claudeResponse.split('\n\n').map(part => {
+                try {
+                  return JSON.parse(part.trim());
+                } catch {
+                  return { type: 'raw', content: part.trim() };
+                }
+              }) : [{ type: 'no_response' }]
+            }));
+          } else {
+            projectData.historyItems = project.historyItems.map((item, index) => ({
+              index: index + 1,
+              display: item.display,
+              size: item.size
+            }));
+          }
+          
+          return projectData;
+        })
+      };
+      
+      try {
+        fs.writeFileSync(options.jsonOutput, JSON.stringify(exportData, null, 2), 'utf8');
+        console.log(chalk.green(`✅ JSON data exported to: ${options.jsonOutput}`));
+        console.log(chalk.blue(`📊 Exported ${exportData.projects.length} projects`));
+        if (options.withCc) {
+          const totalConversations = exportData.projects.reduce((sum, p) => sum + (p.conversations?.length || 0), 0);
+          console.log(chalk.blue(`💬 Total conversations: ${totalConversations}`));
+        }
+        return;
+      } catch (error) {
+        console.error(chalk.red(`❌ Failed to write JSON file: ${error instanceof Error ? error.message : String(error)}`));
+        process.exit(1);
+      }
+    }
+    
     // Display results with clean professional styling
     projects.forEach((project, projectIndex) => {
       // Clean separator
@@ -471,16 +575,26 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
           
           console.log(chalk.blue(`  ${lineNumber}. 👤 User: ${userPrompt}${userTruncated}`));
           
-          // Display Claude response if available
+          // Display Claude response in JSONL format if available
           if (pair.claudeResponse) {
-            const claudeResponse = options.fullMessage
-              ? pair.claudeResponse.replace(/\n/g, ' ')
-              : pair.claudeResponse.replace(/\n/g, ' ').substring(0, width > 10 ? width - 10 : width);
-            const claudeTruncated = !options.fullMessage && pair.claudeResponse.replace(/\n/g, ' ').length > width - 10 ? chalk.dim('...') : '';
+            console.log(chalk.green(`      🤖 CC:`));
             
-            console.log(chalk.green(`      🤖 CC: ${claudeResponse}${claudeTruncated}`));
+            // Parse and display each JSONL-style response part
+            const responseParts = pair.claudeResponse.split('\n\n');
+            responseParts.forEach((part, partIndex) => {
+              if (part.trim()) {
+                let displayContent = part.trim();
+                
+                // Apply width truncation if not full message
+                if (!options.fullMessage && displayContent.length > width - 12) {
+                  displayContent = displayContent.substring(0, width - 15) + chalk.dim('...');
+                }
+                
+                console.log(chalk.gray(`        ${displayContent}`));
+              }
+            });
           } else {
-            console.log(chalk.gray(`      🤖 CC: (no response found)`));
+            console.log(chalk.gray(`      🤖 CC: ${JSON.stringify({ type: 'no_response' })}`));
           }
           
           console.log(); // Add spacing between conversation pairs

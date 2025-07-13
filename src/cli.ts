@@ -30,6 +30,7 @@ program
   .option('--current', 'Only show data for the current project')
   .option('--full-message', 'Show full history messages without truncation')
   .option('--with-cc', 'Include Claude Code responses in conversation display')
+  .option('--json-output <file>', 'Export conversation data to JSON file')
   .option('--analyzer', 'Open interactive analyzer in browser')
   .action(statCommand);
 
