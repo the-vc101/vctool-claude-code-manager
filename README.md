@@ -82,6 +82,8 @@ ccm stat
 - `--history-order <order>`: History order - reverse (newest first), forward (oldest first) (default: reverse)
 - `--current`: Only show data for the current project
 - `--full-message`: Show full history messages without truncation
+- `--with-cc`: Include Claude Code responses in conversation display
+- `--json-output <file>`: Export conversation data to JSON file (supports auto-naming for directories)
 - `--analyzer`: Open interactive web-based analyzer (like webpack bundle analyzer)
 
 #### Sorting Examples
@@ -102,6 +104,13 @@ ccm stat --history-order forward  # Show oldest history first
 ccm stat --current                # Show only current project data
 ccm stat --full-message           # Show full history without truncation
 ccm stat --current --full-message # Show current project with full messages
+
+# Conversation export with Claude responses
+ccm stat --current --with-cc     # Show conversations with Claude responses
+
+# JSON export examples
+ccm stat --current --with-cc --json-output conversations.json
+ccm stat --json-output /exports/   # Auto-generates filename in directory
 
 # Interactive analyzer (like webpack bundle analyzer)
 ccm stat --analyzer               # Open web-based interactive analyzer
@@ -132,6 +141,19 @@ ccm stat --current --full-message --sort-by size
 **Large display with detailed sorting:**
 ```bash
 ccm stat --width 120 --sort-by -size --history-order forward
+```
+
+**Conversation analysis with Claude responses:**
+```bash
+ccm stat --current --with-cc      # Show conversations with Claude responses
+ccm stat --with-cc --full-message # Full conversation history all projects
+```
+
+**JSON export for external analysis:**
+```bash
+ccm stat --current --with-cc --json-output data.json    # Export to specific file
+ccm stat --json-output /exports/                        # Auto-generate filename
+ccm stat --current --json-output ~/backups/             # Export current project
 ```
 
 **Interactive web analyzer:**
