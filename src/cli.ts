@@ -29,8 +29,9 @@ program
   .option('--history-order <order>', 'History order: reverse (newest first), forward (oldest first)', 'reverse')
   .option('--current', 'Only show data for the current project')
   .option('--full-message', 'Show full history messages without truncation')
-  .option('--with-cc', 'Include Claude Code responses in conversation display')
-  .option('--json-output <file>', 'Export conversation data to JSON file')
+  .option('--with-ai', 'Include AI responses in conversation display')
+  .option('--output-path <path>', 'Export data to file or directory (supports auto-naming)')
+  .option('--output-format <format>', 'Export format: json, markdown (requires --output-path)', 'json')
   .option('--analyzer', 'Open interactive analyzer in browser')
   .action(statCommand);
 

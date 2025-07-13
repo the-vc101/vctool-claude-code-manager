@@ -408,7 +408,7 @@ async function generateAnalyzer(projects: ProcessedProject[]): Promise<void> {
   }
 }
 
-export async function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string; current?: boolean; fullMessage?: boolean; analyzer?: boolean; withCc?: boolean; jsonOutput?: string }) {
+export async function statCommand(options: { width?: string; sortBy?: string; historyOrder?: string; current?: boolean; fullMessage?: boolean; analyzer?: boolean; withAi?: boolean; outputPath?: string; outputFormat?: string }) {
   const width = parseInt(options.width || '80', 10);
   const { method, ascending } = parseSortBy(options.sortBy || 'ascii');
   const historyOrder = options.historyOrder || 'reverse';
@@ -464,10 +464,17 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
       return;
     }
     
-    // If JSON output is requested, export to file and return
-    if (options.jsonOutput) {
+    // If output export is requested, handle export and return
+    if (options.outputPath) {
+      // Validate output format
+      const outputFormat = options.outputFormat || 'json';
+      if (!['json', 'markdown'].includes(outputFormat)) {
+        console.error(chalk.red(`❌ Invalid output format: ${outputFormat}. Supported formats: json, markdown`));
+        process.exit(1);
+      }
+      
       // Handle directory input with auto-naming
-      let outputPath = options.jsonOutput;
+      let outputPath = options.outputPath;
       
       // Check if the path is a directory
       let isDirectory = false;
@@ -494,13 +501,13 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
           filename += '-all-projects';
         }
         
-        if (options.withCc) {
+        if (options.withAi) {
           filename += '-conversations';
         } else {
           filename += '-history';
         }
         
-        filename += `-${timestamp}-${timeStr}.json`;
+        filename += `-${timestamp}-${timeStr}.${outputFormat === 'json' ? 'json' : 'md'}`;
         
         // Ensure directory exists
         if (!fs.existsSync(outputPath)) {
@@ -510,13 +517,16 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
         outputPath = path.join(outputPath, filename);
         console.log(chalk.blue(`📁 Auto-generated filename: ${filename}`));
       }
-      const exportData = {
+      
+      if (outputFormat === 'json') {
+        // JSON export logic
+        const exportData = {
         metadata: {
           generatedAt: new Date().toISOString(),
           totalProjects: projects.length,
           filters: {
             current: options.current || false,
-            withCc: options.withCc || false
+            withAi: options.withAi || false
           }
         },
         projects: projects.map(project => {
@@ -526,7 +536,7 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
             historyItemsCount: project.historyItems.length
           };
           
-          if (options.withCc) {
+          if (options.withAi) {
             const conversationPairs = extractConversationPairs(project.path);
             const orderedPairs = historyOrder === 'reverse' 
               ? [...conversationPairs].reverse() 
@@ -556,18 +566,169 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
         })
       };
       
-      try {
-        fs.writeFileSync(outputPath, JSON.stringify(exportData, null, 2), 'utf8');
-        console.log(chalk.green(`✅ JSON data exported to: ${outputPath}`));
-        console.log(chalk.blue(`📊 Exported ${exportData.projects.length} projects`));
-        if (options.withCc) {
-          const totalConversations = exportData.projects.reduce((sum, p) => sum + (p.conversations?.length || 0), 0);
-          console.log(chalk.blue(`💬 Total conversations: ${totalConversations}`));
+        try {
+          fs.writeFileSync(outputPath, JSON.stringify(exportData, null, 2), 'utf8');
+          console.log(chalk.green(`✅ JSON data exported to: ${outputPath}`));
+          console.log(chalk.blue(`📊 Exported ${exportData.projects.length} projects`));
+          if (options.withAi) {
+            const totalConversations = exportData.projects.reduce((sum, p) => sum + (p.conversations?.length || 0), 0);
+            console.log(chalk.blue(`💬 Total conversations: ${totalConversations}`));
+          }
+          return;
+        } catch (error) {
+          console.error(chalk.red(`❌ Failed to write JSON file: ${error instanceof Error ? error.message : String(error)}`));
+          process.exit(1);
         }
-        return;
-      } catch (error) {
-        console.error(chalk.red(`❌ Failed to write JSON file: ${error instanceof Error ? error.message : String(error)}`));
-        process.exit(1);
+        
+      } else if (outputFormat === 'markdown') {
+        // Markdown export logic
+        const timestamp = new Date().toISOString();
+        let markdownContent = `# Claude Code Manager Export\n\n`;
+        markdownContent += `**Generated**: ${timestamp}\n`;
+        markdownContent += `**Total Projects**: ${projects.length}\n`;
+        markdownContent += `**Filters**: ${options.current ? 'Current Project Only' : 'All Projects'}${options.withAi ? ', With AI Responses' : ''}\n\n`;
+        
+        projects.forEach((project, projectIndex) => {
+          markdownContent += `---\n\n`;
+          markdownContent += `## Project ${projectIndex + 1}: \`${project.path}\`\n\n`;
+          markdownContent += `- **Total Size**: ${(project.totalSize / 1024).toFixed(2)} KB\n`;
+          markdownContent += `- **History Entries**: ${project.historyItems.length}\n\n`;
+          
+          if (options.withAi) {
+            // Display conversation pairs with Claude responses
+            const conversationPairs = extractConversationPairs(project.path);
+            const orderedPairs = historyOrder === 'reverse' 
+              ? [...conversationPairs].reverse() 
+              : conversationPairs;
+            
+            markdownContent += `### Conversations\n\n`;
+            
+            orderedPairs.forEach((pair, index) => {
+              markdownContent += `#### ${index + 1}. User Query\n\n`;
+              
+              // Display user prompt (replace claude code references with cc)
+              const processedUserPrompt = pair.userPrompt.replace(/claude code/gi, 'cc').replace(/cc\\([^)]*\\)/gi, 'cc');
+              markdownContent += `**User**: ${processedUserPrompt}\n\n`;
+              
+              // Display Claude response if available
+              if (pair.claudeResponse) {
+                markdownContent += `#### AI Response\n\n`;
+                
+                // Parse and display each JSONL-style response part with better formatting
+                const responseParts = pair.claudeResponse.split('\\n\\n');
+                let textResponses: string[] = [];
+                let toolCalls: any[] = [];
+                let thinkingParts: string[] = [];
+                let systemMessages: any[] = [];
+                
+                responseParts.forEach((part, partIndex) => {
+                  if (part.trim()) {
+                    try {
+                      const jsonData = JSON.parse(part.trim());
+                      
+                      if (jsonData.type === 'text') {
+                        textResponses.push(jsonData.content);
+                      } else if (jsonData.type === 'tool_use') {
+                        toolCalls.push(jsonData);
+                      } else if (jsonData.type === 'thinking') {
+                        thinkingParts.push(jsonData.content);
+                      } else if (jsonData.type === 'system') {
+                        // Skip system messages for cleaner output unless they're important
+                        if (!jsonData.content.includes('PostToolUse') && !jsonData.content.includes('completed successfully')) {
+                          systemMessages.push(jsonData);
+                        }
+                      } else if (jsonData.type === 'summary') {
+                        markdownContent += `**Summary**: ${jsonData.summary}\n\n`;
+                      }
+                    } catch {
+                      // Handle malformed JSON as raw text
+                    }
+                  }
+                });
+                
+                // Display thinking first if any
+                if (thinkingParts.length > 0) {
+                  markdownContent += `**AI's Thinking**:\n\n`;
+                  thinkingParts.forEach(thinking => {
+                    markdownContent += `> ${thinking}\n\n`;
+                  });
+                }
+                
+                // Display main text responses
+                if (textResponses.length > 0) {
+                  markdownContent += `**Response**:\n\n`;
+                  textResponses.forEach(text => {
+                    markdownContent += `${text}\n\n`;
+                  });
+                }
+                
+                // Display tool calls if any
+                if (toolCalls.length > 0) {
+                  markdownContent += `**Tools Used**:\n\n`;
+                  toolCalls.forEach((tool, idx) => {
+                    markdownContent += `${idx + 1}. **${tool.tool}**\n`;
+                    if (tool.input && Object.keys(tool.input).length > 0) {
+                      // Show only key parameters for readability
+                      const keyParams = Object.entries(tool.input)
+                        .filter(([key, value]) => key !== 'description' && typeof value === 'string' && value.length < 100)
+                        .slice(0, 2); // Show max 2 key parameters
+                      
+                      if (keyParams.length > 0) {
+                        keyParams.forEach(([key, value]) => {
+                          markdownContent += `   - ${key}: \`${value}\`\n`;
+                        });
+                      }
+                    }
+                    markdownContent += `\n`;
+                  });
+                  markdownContent += `\n`;
+                }
+                
+                // Display important system messages if any
+                if (systemMessages.length > 0) {
+                  markdownContent += `<details>\n<summary>System Messages</summary>\n\n`;
+                  systemMessages.forEach(msg => {
+                    markdownContent += `- **${msg.level}**: ${msg.content}\n`;
+                  });
+                  markdownContent += `\n</details>\n\n`;
+                }
+              } else {
+                markdownContent += `*No AI response recorded*\n\n`;
+              }
+              
+              markdownContent += `---\n\n`;
+            });
+          } else {
+            // Original history display logic
+            markdownContent += `### History\n\n`;
+            const orderedHistoryItems = historyOrder === 'reverse' 
+              ? [...project.historyItems].reverse() 
+              : project.historyItems;
+            
+            orderedHistoryItems.forEach((item, index) => {
+              markdownContent += `${index + 1}. ${item.display}\n\n`;
+            });
+          }
+        });
+        
+        markdownContent += `---\n\n*Exported by Claude Code Manager v${require('../../package.json').version}*\n`;
+        
+        try {
+          fs.writeFileSync(outputPath, markdownContent, 'utf8');
+          console.log(chalk.green(`✅ Markdown data exported to: ${outputPath}`));
+          console.log(chalk.blue(`📊 Exported ${projects.length} projects`));
+          if (options.withAi) {
+            const totalConversations = projects.reduce((sum, project) => {
+              const pairs = extractConversationPairs(project.path);
+              return sum + pairs.length;
+            }, 0);
+            console.log(chalk.blue(`💬 Total conversations: ${totalConversations}`));
+          }
+          return;
+        } catch (error) {
+          console.error(chalk.red(`❌ Failed to write Markdown file: ${error instanceof Error ? error.message : String(error)}`));
+          process.exit(1);
+        }
       }
     }
     
@@ -600,8 +761,8 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
       console.log(chalk.white(`  History Details (${chalk.bold(project.historyItems.length)} entries):`));
       console.log();
 
-      if (options.withCc) {
-        // Display conversation pairs with Claude responses
+      if (options.withAi) {
+        // Display conversation pairs with AI responses
         const conversationPairs = extractConversationPairs(project.path);
         const orderedPairs = historyOrder === 'reverse' 
           ? [...conversationPairs].reverse() 
@@ -621,7 +782,7 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
           
           // Display Claude response in JSONL format if available
           if (pair.claudeResponse) {
-            console.log(chalk.green(`      🤖 CC:`));
+            console.log(chalk.green(`      🤖 AI:`));
             
             // Parse and display each JSONL-style response part
             const responseParts = pair.claudeResponse.split('\n\n');
@@ -638,7 +799,7 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
               }
             });
           } else {
-            console.log(chalk.gray(`      🤖 CC: ${JSON.stringify({ type: 'no_response' })}`));
+            console.log(chalk.gray(`      🤖 AI: ${JSON.stringify({ type: 'no_response' })}`));
           }
           
           console.log(); // Add spacing between conversation pairs

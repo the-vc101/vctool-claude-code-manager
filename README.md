@@ -82,8 +82,9 @@ ccm stat
 - `--history-order <order>`: History order - reverse (newest first), forward (oldest first) (default: reverse)
 - `--current`: Only show data for the current project
 - `--full-message`: Show full history messages without truncation
-- `--with-cc`: Include Claude Code responses in conversation display
-- `--json-output <file>`: Export conversation data to JSON file (supports auto-naming for directories)
+- `--with-ai`: Include AI responses in conversation display
+- `--output-path <path>`: Export data to file or directory (supports auto-naming)
+- `--output-format <format>`: Export format: json, markdown (requires --output-path) (default: json)
 - `--analyzer`: Open interactive web-based analyzer (like webpack bundle analyzer)
 
 #### Sorting Examples
@@ -105,11 +106,11 @@ ccm stat --current                # Show only current project data
 ccm stat --full-message           # Show full history without truncation
 ccm stat --current --full-message # Show current project with full messages
 
-# Conversation export with Claude responses
-ccm stat --current --with-cc     # Show conversations with Claude responses
+# Conversation export with AI responses
+ccm stat --current --with-ai     # Show conversations with AI responses
 
 # JSON export examples
-ccm stat --current --with-cc --json-output conversations.json
+ccm stat --current --with-ai --json-output conversations.json
 ccm stat --json-output /exports/   # Auto-generates filename in directory
 
 # Interactive analyzer (like webpack bundle analyzer)
@@ -143,17 +144,22 @@ ccm stat --current --full-message --sort-by size
 ccm stat --width 120 --sort-by -size --history-order forward
 ```
 
-**Conversation analysis with Claude responses:**
+**Conversation analysis with AI responses:**
 ```bash
-ccm stat --current --with-cc      # Show conversations with Claude responses
-ccm stat --with-cc --full-message # Full conversation history all projects
+ccm stat --current --with-ai      # Show conversations with AI responses
+ccm stat --with-ai --full-message # Full conversation history all projects
 ```
 
-**JSON export for external analysis:**
+**Export for external analysis:**
 ```bash
-ccm stat --current --with-cc --json-output data.json    # Export to specific file
-ccm stat --json-output /exports/                        # Auto-generate filename
-ccm stat --current --json-output ~/backups/             # Export current project
+# JSON format (default)
+ccm stat --current --with-ai --output-path data.json              # Export to specific file
+ccm stat --current --output-path /exports/ --output-format json   # Auto-generate filename
+
+# Markdown format  
+ccm stat --current --with-ai --output-path report.md --output-format markdown  # Export to Markdown
+ccm stat --current --output-path /reports/ --output-format markdown           # Auto-generate Markdown
+ccm stat --current --output-path ~/docs/                                      # Auto-generate (default JSON)
 ```
 
 **Interactive web analyzer:**
