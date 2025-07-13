@@ -76,7 +76,7 @@ function parseSortBy(sortBy: string): { method: 'ascii' | 'size'; ascending: boo
 
 function findSessionFiles(projectPath: string): string[] {
   const homeDir = os.homedir();
-  const encodedPath = projectPath.replace(/\//g, '-');
+  const encodedPath = projectPath.replace(/\//g, '-').replace(/\./g, '-');
   const sessionDir = path.join(homeDir, '.claude', 'projects', encodedPath);
   
   try {
