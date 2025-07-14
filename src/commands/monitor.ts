@@ -66,12 +66,13 @@ class CCTaskMonitor {
   private selectedIndex = 0;
   private watcherActive = false;
   private refreshInterval: NodeJS.Timeout | null = null;
-  private currentFilter = 'all';
+  private currentFilter = 'active_only';
   private sortBy = 'modified';
-  private displayMode = 'tree';
+  private displayMode = 'flat';
   private reverseSort = false;
   private projectFilter: string | null = null;
   private refreshIntervalMs = 2000;
+  private activeThreshold = 'recent'; // recent, today, week, all
   private todoPath: string;
   private dbPath: string;
   private db: Database.Database | null = null;
@@ -83,7 +84,10 @@ class CCTaskMonitor {
     // Apply options
     if (options.displayMode) this.displayMode = options.displayMode;
     if (options.order) this.sortBy = options.order;
-    if (options.filter) this.currentFilter = options.filter;
+    if (options.filter) {
+      // Map CLI 'active' to internal 'active_only'
+      this.currentFilter = options.filter === 'active' ? 'active_only' : options.filter;
+    }
     if (options.project) this.projectFilter = options.project;
     if (options.reverse) this.reverseSort = true;
     if (options.refreshInterval) {
@@ -156,7 +160,7 @@ class CCTaskMonitor {
         border: { fg: 'cyan' }
       },
       tags: true,
-      content: '[Tab]Filter [A]Active [D]Display [S]Sort [V]Reverse [P]Project [C]Clear [+/-]Speed [F1]Help [Q]Quit'
+      content: '{center}[Tab]Filter [A]Threshold [D]Display [S]Sort [V]Reverse [P]Project [C]Clear [+/-]Speed [F1]Help [Q]Quit{/center}'
     });
   }
 
@@ -171,20 +175,26 @@ class CCTaskMonitor {
       .reduce((sum, project) => sum + project.sessions.size, 0);
     
     const filterDisplay = this.getFilterDisplay();
+    const displayMode = this.displayMode.toUpperCase();
+    const sortBy = this.sortBy.toUpperCase() + (this.reverseSort ? ' ↓' : ' ↑');
+    const refreshInterval = `${this.refreshIntervalMs / 1000}s`;
     
-    return `{bold}Claude Code Task Monitor{/bold}                    [F1:Help] [F10:Quit]
-Tasks: ${activeCount} active, ${pendingCount} pending, ${inProgressCount} in-progress, ${completedCount} completed
-Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}    [{green-fg}●{/green-fg}] Live`;
+    // Right-aligned status info
+    const statusInfo = `Mode: ${displayMode} | Sort: ${sortBy} | ${refreshInterval} | [{green-fg}●{/green-fg}] Live`;
+    
+    return `{bold}Claude Code Task Monitor{/bold}
+Tasks: {yellow-fg}${pendingCount.toString().padStart(2)} PEND{/yellow-fg} | {blue-fg}${inProgressCount.toString().padStart(2)} PROG{/blue-fg} | {green-fg}${completedCount.toString().padStart(2)} DONE{/green-fg} | Total: {bold}${activeCount.toString().padStart(2)} ACTIVE{/bold}
+Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}${sessionCount.toString().padStart(2)}{/bold} | Filter: ${filterDisplay} | ${statusInfo}`;
   }
 
   private getFilterDisplay(): string {
     switch (this.currentFilter) {
-      case 'all': return '{white-fg}All{/white-fg}';
-      case 'pending': return '{yellow-fg}Pending{/yellow-fg}';
-      case 'in_progress': return '{blue-fg}In Progress{/blue-fg}';
-      case 'completed': return '{green-fg}Completed{/green-fg}';
-      case 'active_only': return '{cyan-fg}Active Only{/cyan-fg}';
-      default: return this.currentFilter;
+      case 'all': return '{white-fg}ALL{/white-fg}';
+      case 'pending': return '{yellow-fg}PEND{/yellow-fg}';
+      case 'in_progress': return '{blue-fg}PROG{/blue-fg}';
+      case 'completed': return '{green-fg}DONE{/green-fg}';
+      case 'active_only': return `{cyan-fg}ACTIVE-${this.activeThreshold.toUpperCase()}{/cyan-fg}`;
+      default: return this.currentFilter.toUpperCase();
     }
   }
 
@@ -216,6 +226,7 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     });
 
     this.screen.key(['r'], () => {
+      this.clearScreen();
       this.refreshData();
     });
 
@@ -245,8 +256,7 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     });
 
     this.screen.key(['a'], () => {
-      this.currentFilter = 'active_only';
-      this.refreshData();
+      this.cycleActiveThreshold();
     });
 
     // Display mode cycling
@@ -257,6 +267,7 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     // Reverse sort toggle
     this.screen.key(['v'], () => {
       this.reverseSort = !this.reverseSort;
+      this.clearScreen();
       this.refreshData();
     });
 
@@ -432,7 +443,7 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
         const sessionNode: TreeNode = {
           id: `${projectPath}-${sessionId}`,
           type: 'session',
-          label: `💬 Session: ${sessionId.substring(0, 8)}...`,
+          label: `💬 Session: ${sessionId.substring(0, 8)}... (${sessions.length} agents)`,
           level: 2,
           expanded: true,
           children: [],
@@ -442,10 +453,14 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
 
         // Add agents under each session
         for (const session of sessions) {
+          const agentDisplayName = session.agentId === sessionId ? 'Main' : session.agentId.substring(0, 8) + '...';
+          const taskCount = session.todos.length;
+          const activeTaskCount = session.todos.filter(todo => todo.status === 'pending' || todo.status === 'in_progress').length;
+          
           const agentNode: TreeNode = {
             id: `${projectPath}-${sessionId}-${session.agentId}`,
             type: 'agent',
-            label: `🤖 Agent: ${session.agentId === sessionId ? 'Main' : session.agentId.substring(0, 8) + '...'}`,
+            label: `🤖 Agent: ${agentDisplayName.padEnd(12)} (${activeTaskCount}/${taskCount} tasks)`,
             level: 3,
             expanded: true,
             children: [],
@@ -465,10 +480,15 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
               return;
             }
 
+            // Apply active threshold filter when using active_only
+            if (this.currentFilter === 'active_only' && !this.isWithinActiveThreshold(session.lastModified)) {
+              return;
+            }
+
             const taskNode: TreeNode = {
               id: `${projectPath}-${sessionId}-${session.agentId}-${todo.id}`,
               type: 'task',
-              label: this.formatTaskLabel(todo),
+              label: this.formatTaskLabel(todo, session),
               level: 4,
               expanded: false,
               parent: agentNode,
@@ -521,7 +541,7 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
         const sessionNode: TreeNode = {
           id: `orphaned-${sessionId}`,
           type: 'session',
-          label: `💬 Session: ${sessionId.substring(0, 8)}...`,
+          label: `💬 Session: ${sessionId.substring(0, 8)}... (${sessions.length} agents)`,
           level: 2,
           expanded: true,
           children: [],
@@ -531,10 +551,14 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
 
         // Add agents and tasks
         for (const session of sessions) {
+          const agentDisplayName = session.agentId === sessionId ? 'Main' : session.agentId.substring(0, 8) + '...';
+          const taskCount = session.todos.length;
+          const activeTaskCount = session.todos.filter(todo => todo.status === 'pending' || todo.status === 'in_progress').length;
+          
           const agentNode: TreeNode = {
             id: `orphaned-${sessionId}-${session.agentId}`,
             type: 'agent',
-            label: `🤖 Agent: ${session.agentId === sessionId ? 'Main' : session.agentId.substring(0, 8) + '...'}`,
+            label: `🤖 Agent: ${agentDisplayName.padEnd(12)} (${activeTaskCount}/${taskCount} tasks)`,
             level: 3,
             expanded: true,
             children: [],
@@ -554,10 +578,15 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
               return;
             }
 
+            // Apply active threshold filter when using active_only
+            if (this.currentFilter === 'active_only' && !this.isWithinActiveThreshold(session.lastModified)) {
+              return;
+            }
+
             const taskNode: TreeNode = {
               id: `orphaned-${sessionId}-${session.agentId}-${todo.id}`,
               type: 'task',
-              label: this.formatTaskLabel(todo),
+              label: this.formatTaskLabel(todo, session),
               level: 4,
               expanded: false,
               parent: agentNode,
@@ -586,16 +615,118 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     this.sortTreeNodes(this.treeRoot);
   }
 
-  private formatTaskLabel(todo: TodoItem): string {
+  private formatTaskLabel(todo: TodoItem, session?: SessionData): string {
     const statusIcon = this.getStatusIcon(todo.status);
     const priorityIcon = this.getPriorityIcon(todo.priority);
     const statusColor = this.getStatusColor(todo.status);
     const priorityColor = this.getPriorityColor(todo.priority);
     
-    const truncatedContent = todo.content.length > 50 ? 
-      todo.content.substring(0, 47) + '...' : todo.content;
+    // Use short, fixed-width status display
+    const statusDisplay = this.getShortStatus(todo.status);
+    const priorityDisplay = this.getShortPriority(todo.priority);
     
-    return `${statusIcon} {${statusColor}}${todo.status}{/${statusColor}} ${priorityIcon} {${priorityColor}}${todo.priority}{/${priorityColor}} ${truncatedContent}`;
+    // Add fromNow and projectName columns
+    const fromNow = session ? this.getFromNow(session.lastModified) : '';
+    const projectName = session?.projectPath ? this.getProjectName(session.projectPath) : 'Unknown';
+    
+    // Use tab-separated columns for consistent alignment
+    const statusPart = `${statusIcon} {${statusColor}}${statusDisplay}{/${statusColor}}`;
+    const priorityPart = `${priorityIcon} {${priorityColor}}${priorityDisplay}{/${priorityColor}}`;
+    const timePart = fromNow.padEnd(6);
+    const projectPart = this.padWithWidth(projectName, 12);
+    
+    // Calculate content with proper width handling  
+    const contentMaxWidth = 45;
+    const truncatedContent = this.truncateWithWidth(todo.content, contentMaxWidth);
+    
+    return `${statusPart}\t${priorityPart}\t${timePart}\t${projectPart}\t${truncatedContent}`;
+  }
+
+  private padWithWidth(str: string, targetWidth: number): string {
+    const truncated = this.truncateWithWidth(str, targetWidth);
+    const currentWidth = this.getDisplayWidth(truncated);
+    const paddingNeeded = Math.max(0, targetWidth - currentWidth);
+    return truncated + ' '.repeat(paddingNeeded);
+  }
+
+  private getFromNow(date: Date): string {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffMinutes < 1) return 'now';
+    if (diffMinutes < 60) return `${diffMinutes}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 7) return `${diffDays}d`;
+    return `${Math.floor(diffDays / 7)}w`;
+  }
+
+  private isWithinActiveThreshold(date: Date): boolean {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    const diffDays = diffHours / 24;
+    
+    switch (this.activeThreshold) {
+      case 'recent': return diffHours <= 6; // Last 6 hours
+      case 'today': return diffHours <= 24; // Last 24 hours  
+      case 'week': return diffDays <= 7; // Last 7 days
+      case 'all': return true; // No time limit
+      default: return true;
+    }
+  }
+
+  private getDisplayWidth(str: string): number {
+    let width = 0;
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      // Chinese characters and most Unicode characters take 2 spaces
+      if (code > 127) {
+        width += 2;
+      } else {
+        width += 1;
+      }
+    }
+    return width;
+  }
+
+  private truncateWithWidth(str: string, maxWidth: number): string {
+    let width = 0;
+    let truncated = '';
+    
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      const charWidth = str.charCodeAt(i) > 127 ? 2 : 1;
+      
+      if (width + charWidth > maxWidth - 3) { // Reserve space for "..."
+        return truncated + '...';
+      }
+      
+      truncated += char;
+      width += charWidth;
+    }
+    
+    return truncated;
+  }
+
+  private getShortStatus(status: string): string {
+    switch (status) {
+      case 'pending': return 'PEND';
+      case 'in_progress': return 'PROG';
+      case 'completed': return 'DONE';
+      default: return status.substring(0, 4).toUpperCase().padEnd(4);
+    }
+  }
+
+  private getShortPriority(priority: string): string {
+    switch (priority) {
+      case 'high': return 'HI';
+      case 'medium': return 'MD';
+      case 'low': return 'LO';
+      default: return priority.substring(0, 2).toUpperCase();
+    }
   }
 
   private getStatusIcon(status: string): string {
@@ -753,13 +884,17 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
         
       case 'flat':
         this.flattenedTree = this.getAllTasks();
-        items = this.flattenedTree.map(node => node.label);
+        items = this.flattenedTree.map((node, index) => {
+          const indexStr = `${index + 1}.`.padEnd(4);
+          return `${indexStr}${node.label}`;
+        });
         break;
         
       case 'list':
         this.flattenedTree = this.getAllTasks();
         items = this.flattenedTree.map((node, index) => {
-          return `${index + 1}. ${node.label}`;
+          const indexStr = `${index + 1}.`.padEnd(4);
+          return `${indexStr}${node.label}`;
         });
         break;
         
@@ -817,10 +952,42 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     this.headerBox.setContent(this.getHeaderContent());
   }
 
+  private clearScreen() {
+    // Step 1: Clear existing content
+    this.tasksBox.clearItems();
+    
+    // Step 2: Calculate dimensions with safety margins
+    const boxWidth = Math.max((this.tasksBox.width as number) - 2, 100);
+    const boxHeight = Math.max((this.tasksBox.height as number) - 2, 30);
+    
+    // Step 3: Create overwrite content with extra wide spaces
+    const wideEmptyLine = ' '.repeat(Math.max(boxWidth, 200)); // Ensure full width coverage
+    const emptyLines = Array(Math.max(boxHeight, 50)).fill(wideEmptyLine); // Ensure full height coverage
+    
+    // Step 4: Multiple render cycles to ensure overwrite
+    this.tasksBox.setItems(emptyLines);
+    this.screen.render();
+    
+    // Step 5: Force a second overwrite with different content to break any caching
+    const clearLines = Array(Math.max(boxHeight, 50)).fill(''.padEnd(Math.max(boxWidth, 200)));
+    this.tasksBox.setItems(clearLines);
+    this.screen.render();
+    
+    // Step 6: Final cleanup
+    this.tasksBox.clearItems();
+    this.tasksBox.setItems([]);
+    
+    // Step 7: Force screen reallocation to reset state
+    this.screen.realloc();
+    this.screen.render();
+  }
+
   private cycleFilter() {
     const filters = ['all', 'pending', 'in_progress', 'completed', 'active_only'];
     const currentIndex = filters.indexOf(this.currentFilter);
     this.currentFilter = filters[(currentIndex + 1) % filters.length];
+    
+    this.clearScreen();
     this.refreshData();
   }
 
@@ -831,10 +998,24 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     this.refreshData();
   }
 
+  private cycleActiveThreshold() {
+    const thresholds = ['recent', 'today', 'week', 'all'];
+    const currentIndex = thresholds.indexOf(this.activeThreshold);
+    this.activeThreshold = thresholds[(currentIndex + 1) % thresholds.length];
+    
+    // Set filter to active_only when using active threshold
+    this.currentFilter = 'active_only';
+    
+    this.clearScreen();
+    this.refreshData();
+  }
+
   private cycleDisplayMode() {
     const displayModes = ['tree', 'flat', 'list'];
     const currentIndex = displayModes.indexOf(this.displayMode);
     this.displayMode = displayModes[(currentIndex + 1) % displayModes.length];
+    
+    this.clearScreen();
     this.refreshData();
   }
 
@@ -949,7 +1130,10 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
 ${session.todos.map((todo, i) => {
   const statusIcon = this.getStatusIcon(todo.status);
   const priorityIcon = this.getPriorityIcon(todo.priority);
-  return `${i + 1}. ${statusIcon} ${priorityIcon} ${todo.content}`;
+  const statusDisplay = this.getShortStatus(todo.status);
+  const priorityDisplay = this.getShortPriority(todo.priority);
+  const indexStr = `${i + 1}.`.padEnd(3);
+  return `${indexStr}${statusIcon} ${statusDisplay} ${priorityIcon} ${priorityDisplay} ${todo.content}`;
 }).join('\n')}
 
 Press [Escape] to close`;
@@ -1141,7 +1325,14 @@ Press [Escape] to close`;
 ${task.content}
 
 {bold}All Tasks in Session:{/bold}
-${session.todos.map((t, i) => `${i + 1}. [${t.status}] ${t.content}`).join('\n')}
+${session.todos.map((t, i) => {
+  const statusIcon = this.getStatusIcon(t.status);
+  const priorityIcon = this.getPriorityIcon(t.priority);
+  const statusDisplay = this.getShortStatus(t.status);
+  const priorityDisplay = this.getShortPriority(t.priority);
+  const indexStr = `${i + 1}.`.padEnd(3);
+  return `${indexStr}${statusIcon} ${statusDisplay} ${priorityIcon} ${priorityDisplay} ${t.content}`;
+}).join('\n')}
 
 Press [Escape] to close`;
 
@@ -1192,7 +1383,7 @@ Press [Escape] to close`;
 
 {bold}Filtering & Sorting:{/bold}
   Tab           - Cycle through filters (all/pending/in_progress/completed/active)
-  A             - Quick switch to Active Only filter
+  A             - Cycle active threshold (recent/today/week/all)
   S             - Cycle through sort options (priority/status/modified/ascii)
   V             - Toggle reverse sort order
   P             - Set project filter (input dialog)
