@@ -114,6 +114,46 @@ function readSessionMessages(filePath: string): SessionMessage[] {
   }
 }
 
+function getToolActionDescription(toolName: string, count: number): string {
+  const descriptions: Record<string, string> = {
+    'Read': count === 1 ? 'Read 1 file' : `Read ${count} files`,
+    'Edit': count === 1 ? 'Made 1 code edit' : `Made ${count} code edits`,
+    'Write': count === 1 ? 'Created 1 new file' : `Created ${count} new files`,
+    'Bash': count === 1 ? 'Ran 1 command' : `Ran ${count} commands`,
+    'Grep': count === 1 ? 'Searched 1 pattern' : `Searched ${count} patterns`,
+    'Glob': count === 1 ? 'Found files matching 1 pattern' : `Found files matching ${count} patterns`,
+    'LS': count === 1 ? 'Listed 1 directory' : `Listed ${count} directories`,
+    'TodoWrite': count === 1 ? 'Updated task list' : `Updated task list ${count} times`,
+    'Task': count === 1 ? 'Delegated 1 subtask' : `Delegated ${count} subtasks`
+  };
+  
+  return descriptions[toolName] || `Used ${toolName} tool ${count} time${count > 1 ? 's' : ''}`;
+}
+
+function extractRelevantParams(toolName: string, input: any): string[] {
+  const params: string[] = [];
+  
+  if (toolName === 'Read' && input.file_path) {
+    const fileName = input.file_path.split('/').pop();
+    params.push(`📄 ${fileName}`);
+  } else if (toolName === 'Edit' && input.file_path) {
+    const fileName = input.file_path.split('/').pop();
+    params.push(`✏️ ${fileName}`);
+  } else if (toolName === 'Write' && input.file_path) {
+    const fileName = input.file_path.split('/').pop();
+    params.push(`📝 ${fileName}`);
+  } else if (toolName === 'Bash' && input.command) {
+    const shortCmd = input.command.length > 50 ? input.command.substring(0, 50) + '...' : input.command;
+    params.push(`💻 \`${shortCmd}\``);
+  } else if (toolName === 'Grep' && input.pattern) {
+    params.push(`🔍 Pattern: "${input.pattern}"`);
+  } else if (toolName === 'Glob' && input.pattern) {
+    params.push(`🗂️ Pattern: "${input.pattern}"`);
+  }
+  
+  return params;
+}
+
 function extractConversationPairs(projectPath: string): ConversationPair[] {
   const sessionFiles = findSessionFiles(projectPath);
   const allMessages: SessionMessage[] = [];
@@ -604,22 +644,18 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
             markdownContent += `### Conversations\n\n`;
             
             orderedPairs.forEach((pair, index) => {
-              markdownContent += `#### ${index + 1}. User Query\n\n`;
-              
               // Display user prompt (replace claude code references with cc)
               const processedUserPrompt = pair.userPrompt.replace(/claude code/gi, 'cc').replace(/cc\\([^)]*\\)/gi, 'cc');
-              markdownContent += `**User**: ${processedUserPrompt}\n\n`;
+              markdownContent += `## 💬 Conversation ${index + 1}\n\n`;
+              markdownContent += `**You:** ${processedUserPrompt}\n\n`;
               
-              // Display Claude response if available
+              // Display AI response if available
               if (pair.claudeResponse) {
-                markdownContent += `#### AI Response\n\n`;
-                
                 // Parse and display each JSONL-style response part with better formatting
                 const responseParts = pair.claudeResponse.split('\\n\\n');
                 let textResponses: string[] = [];
                 let toolCalls: any[] = [];
                 let thinkingParts: string[] = [];
-                let systemMessages: any[] = [];
                 
                 responseParts.forEach((part, partIndex) => {
                   if (part.trim()) {
@@ -632,68 +668,98 @@ export async function statCommand(options: { width?: string; sortBy?: string; hi
                         toolCalls.push(jsonData);
                       } else if (jsonData.type === 'thinking') {
                         thinkingParts.push(jsonData.content);
-                      } else if (jsonData.type === 'system') {
-                        // Skip system messages for cleaner output unless they're important
-                        if (!jsonData.content.includes('PostToolUse') && !jsonData.content.includes('completed successfully')) {
-                          systemMessages.push(jsonData);
-                        }
-                      } else if (jsonData.type === 'summary') {
-                        markdownContent += `**Summary**: ${jsonData.summary}\n\n`;
                       }
-                    } catch {
-                      // Handle malformed JSON as raw text
+                    } catch (e) {
+                      // Handle malformed JSON as raw text - might be truncated console output
                     }
                   }
                 });
                 
-                // Display thinking first if any
+                // Display thinking first if any (as a collapsed section)
                 if (thinkingParts.length > 0) {
-                  markdownContent += `**AI's Thinking**:\n\n`;
+                  markdownContent += `<details>\n<summary>🤔 AI's internal thoughts...</summary>\n\n`;
                   thinkingParts.forEach(thinking => {
                     markdownContent += `> ${thinking}\n\n`;
                   });
+                  markdownContent += `</details>\n\n`;
                 }
                 
-                // Display main text responses
-                if (textResponses.length > 0) {
-                  markdownContent += `**Response**:\n\n`;
-                  textResponses.forEach(text => {
-                    markdownContent += `${text}\n\n`;
+                // Display main AI response
+                if (options.fullMessage) {
+                  // In full-message mode, show all content including unparsed parts
+                  markdownContent += `**AI Response (Full):**\n\n`;
+                  
+                  if (textResponses.length > 0) {
+                    markdownContent += `**Text Responses:**\n`;
+                    textResponses.forEach((text, idx) => {
+                      markdownContent += `${idx + 1}. ${text}\n`;
+                    });
+                    markdownContent += `\n`;
+                  }
+                  
+                  if (thinkingParts.length > 0) {
+                    markdownContent += `**AI Thinking:**\n`;
+                    thinkingParts.forEach((thinking, idx) => {
+                      markdownContent += `${idx + 1}. ${thinking}\n`;
+                    });
+                    markdownContent += `\n`;
+                  }
+                  
+                  // Show all response parts in full-message mode
+                  markdownContent += `**All Response Parts:**\n\`\`\`json\n`;
+                  responseParts.forEach((part, idx) => {
+                    if (part.trim()) {
+                      markdownContent += `${part.trim()}\n`;
+                    }
                   });
+                  markdownContent += `\`\`\`\n\n`;
+                } else {
+                  // Normal mode - human-readable summary
+                  markdownContent += `**AI:** `;
+                  if (textResponses.length > 0) {
+                    // Combine all text responses into a natural flow
+                    const combinedResponse = textResponses.join(' ').trim();
+                    markdownContent += `${combinedResponse}\n\n`;
+                  } else {
+                    markdownContent += `*Worked with tools to complete the task*\n\n`;
+                  }
                 }
                 
-                // Display tool calls if any
+                // Display tool actions in a human-readable way
                 if (toolCalls.length > 0) {
-                  markdownContent += `**Tools Used**:\n\n`;
+                  markdownContent += `**Actions taken:**\n`;
+                  
+                  const toolSummary = toolCalls.reduce((acc: Record<string, number>, tool) => {
+                    const toolName = tool.tool;
+                    acc[toolName] = (acc[toolName] || 0) + 1;
+                    return acc;
+                  }, {});
+                  
+                  Object.entries(toolSummary).forEach(([toolName, count]) => {
+                    const action = getToolActionDescription(toolName, count as number);
+                    markdownContent += `- ${action}\n`;
+                  });
+                  markdownContent += `\n`;
+                  
+                  // Show specific tool details in collapsed section for those who want details
+                  markdownContent += `<details>\n<summary>🔧 Technical details</summary>\n\n`;
                   toolCalls.forEach((tool, idx) => {
                     markdownContent += `${idx + 1}. **${tool.tool}**\n`;
-                    if (tool.input && Object.keys(tool.input).length > 0) {
-                      // Show only key parameters for readability
-                      const keyParams = Object.entries(tool.input)
-                        .filter(([key, value]) => key !== 'description' && typeof value === 'string' && value.length < 100)
-                        .slice(0, 2); // Show max 2 key parameters
-                      
-                      if (keyParams.length > 0) {
-                        keyParams.forEach(([key, value]) => {
-                          markdownContent += `   - ${key}: \`${value}\`\n`;
+                    if (tool.input) {
+                      // Show only the most relevant parameters
+                      const relevantParams = extractRelevantParams(tool.tool, tool.input);
+                      if (relevantParams.length > 0) {
+                        relevantParams.forEach(param => {
+                          markdownContent += `   - ${param}\n`;
                         });
                       }
                     }
                     markdownContent += `\n`;
                   });
-                  markdownContent += `\n`;
-                }
-                
-                // Display important system messages if any
-                if (systemMessages.length > 0) {
-                  markdownContent += `<details>\n<summary>System Messages</summary>\n\n`;
-                  systemMessages.forEach(msg => {
-                    markdownContent += `- **${msg.level}**: ${msg.content}\n`;
-                  });
-                  markdownContent += `\n</details>\n\n`;
+                  markdownContent += `</details>\n\n`;
                 }
               } else {
-                markdownContent += `*No AI response recorded*\n\n`;
+                markdownContent += `**AI:** *No response recorded*\n\n`;
               }
               
               markdownContent += `---\n\n`;
