@@ -6,7 +6,7 @@ A CLI tool for managing Claude Code workflows with automatic execution tracking 
 
 ```bash
 npm install -g vctool-claude-code-manager
-ccm monitor
+ccm init
 ```
 
 ## Features
@@ -49,6 +49,8 @@ ccm monitor
 
 **Tree Structure:** Project → Session → Agent → Task
 
+![`ccm monitor`](assets/ccm-monitor-demo.png)
+
 </details>
 
 <details>
@@ -75,16 +77,25 @@ ccm usage blocks --live    # Real-time dashboard
 
 View session statistics and export data.
 
-```bash
-ccm stat --analyzer        # Interactive web analyzer
-ccm stat --output-path     # Export data
-```
-
 **Options:**
 - `--analyzer` - Open web-based analyzer
 - `--output-path <path>` - Export data (JSON/Markdown)
 - `--current` - Current project only
 - `--with-ai` - Include AI responses
+
+```bash
+ccm stat --analyzer        # Interactive web analyzer
+ccm stat --output-path     # Export data
+```
+
+![`ccm stat --analyzer`](assets/ccm-stat-analyzer-demo.png)
+
+
+```bash
+ccm stat --current
+```
+
+![`ccm stat --current`](assets/ccm-current-user-messages.png)
 
 </details>
 
