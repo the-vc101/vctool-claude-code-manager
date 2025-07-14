@@ -30,12 +30,14 @@
     "commander": "^12.0.0",
     "express": "^5.1.0",
     "open": "^10.1.2",
-    "better-sqlite3": "^11.0.0"
+    "better-sqlite3": "^11.0.0",
+    "blessed": "^0.1.81"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/node": "^20.0.0",
     "@types/better-sqlite3": "^7.6.8",
+    "@types/blessed": "^0.1.21",
     "ts-node": "^10.0.0",
     "typescript": "^5.0.0"
   },

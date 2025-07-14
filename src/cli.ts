@@ -10,6 +10,7 @@ import { slimCommand } from './commands/slim';
 import { usageCommand } from './commands/usage';
 import { trackCommand } from './commands/track';
 import { initCommand } from './commands/init';
+import { monitorCommand } from './commands/monitor';
 
 const packageJsonPath = path.join(__dirname, '../package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -70,5 +71,10 @@ program
   .option('--force', 'Force reinitialize even if already set up')
   .option('--check', 'Check current setup status')
   .action(initCommand);
+
+program
+  .command('monitor')
+  .description('Real-time monitoring of Claude Code tasks (htop-like interface)')
+  .action(monitorCommand);
 
 program.parse();
