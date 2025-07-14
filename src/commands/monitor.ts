@@ -78,6 +78,9 @@ class CCTaskMonitor {
   private db: Database.Database | null = null;
   private lastDisplayedLines = 0; // Track last displayed line count
   private tasksBoxConfig: any; // Store original tasksBox configuration
+  private helpVisible = false; // Track help popup visibility
+  private detailPopupVisible = false; // Track detail popup visibility
+  private currentDetailPopup: any = null; // Reference to current detail popup
 
   constructor(options: MonitorOptions = {}) {
     this.todoPath = path.join(os.homedir(), '.claude', 'todos');
@@ -97,10 +100,10 @@ class CCTaskMonitor {
     }
     
     this.screen = blessed.screen({
-      smartCSR: false,
+      smartCSR: false, // Keep disabled for stability
       title: 'Claude Code Task Monitor', 
       dockBorders: true,
-      fullUnicode: false, // Disable unicode to fix rendering issues
+      fullUnicode: true, // Re-enable unicode but with careful handling
       fastCSR: false,
     });
 
@@ -187,18 +190,18 @@ class CCTaskMonitor {
     // Right-aligned status info
     const statusInfo = `Mode: ${displayMode} | Sort: ${sortBy} | ${refreshInterval} | [{green-fg}●{/green-fg}] Live`;
     
-    return `Claude Code Task Monitor [DEBUG: ${this.activeThreshold}]
-Tasks: ${pendingCount} PEND | ${inProgressCount} PROG | ${completedCount} DONE | Total: ${activeCount} ACTIVE
-Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay} | ${statusInfo}`;
+    return `{bold}Claude Code Task Monitor{/bold}
+Tasks: {yellow-fg}${pendingCount}{/yellow-fg} PEND | {blue-fg}${inProgressCount}{/blue-fg} PROG | {green-fg}${completedCount}{/green-fg} DONE | Total: {bold}${activeCount}{/bold} ACTIVE
+Projects: {bold}${projectCount}{/bold} | Sessions: {bold}${sessionCount}{/bold} | Filter: ${filterDisplay} | ${statusInfo}`;
   }
 
   private getFilterDisplay(): string {
     switch (this.currentFilter) {
-      case 'all': return 'ALL';
-      case 'pending': return 'PEND';
-      case 'in_progress': return 'PROG';
-      case 'completed': return 'DONE';
-      case 'active_only': return `ACTIVE-${this.activeThreshold.toUpperCase()}`;
+      case 'all': return '{white-fg}ALL{/white-fg}';
+      case 'pending': return '{yellow-fg}PEND{/yellow-fg}';
+      case 'in_progress': return '{blue-fg}PROG{/blue-fg}';
+      case 'completed': return '{green-fg}DONE{/green-fg}';
+      case 'active_only': return `{cyan-fg}ACTIVE-${this.activeThreshold.toUpperCase()}{/cyan-fg}`;
       default: return this.currentFilter.toUpperCase();
     }
   }
@@ -226,6 +229,16 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
 
   private bindEvents() {
     this.screen.key(['escape', 'q', 'C-c'], () => {
+      // If help is visible, close help instead of exiting
+      if (this.helpVisible) {
+        this.hideHelp();
+        return;
+      }
+      // If detail popup is visible, close it instead of exiting
+      if (this.detailPopupVisible) {
+        this.hideDetailPopup();
+        return;
+      }
       this.cleanup();
       process.exit(0);
     });
@@ -251,7 +264,7 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     });
 
     this.screen.key(['f1'], () => {
-      this.showHelp();
+      this.toggleHelp();
     });
 
     this.screen.key(['f10'], () => {
@@ -622,18 +635,21 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
   }
 
   private formatTaskLabel(todo: TodoItem, session?: SessionData): string {
-    // Ultra-simple ASCII-only formatting to fix rendering issues
+    // Restore colors but keep simple structure
+    const statusColor = todo.status === 'pending' ? 'yellow-fg' : todo.status === 'in_progress' ? 'blue-fg' : 'green-fg';
+    const priorityColor = todo.priority === 'high' ? 'red-fg' : todo.priority === 'medium' ? 'yellow-fg' : 'white-fg';
+    
     const status = todo.status === 'pending' ? 'PEND' : todo.status === 'in_progress' ? 'PROG' : 'DONE';
     const priority = todo.priority === 'high' ? 'HI' : todo.priority === 'medium' ? 'MD' : 'LO';
     const fromNow = session ? this.getFromNow(session.lastModified) : '';
     const projectName = session?.projectPath ? this.getProjectName(session.projectPath) : 'Unknown';
     
-    // Clean content - remove all non-ASCII characters
-    const cleanContent = todo.content.replace(/[^\x20-\x7E]/g, '?').replace(/\s+/g, ' ').trim();
+    // Keep content mostly clean but allow basic Unicode
+    const cleanContent = todo.content.replace(/\s+/g, ' ').trim();
     const truncatedContent = cleanContent.length > 40 ? cleanContent.substring(0, 40) + '...' : cleanContent;
     
-    // Use simple space-separated format
-    return `${status.padEnd(4)} ${priority.padEnd(2)} ${fromNow.padEnd(4)} ${projectName.padEnd(12)} ${truncatedContent}`;
+    // Use colored status but simple structure
+    return `{${statusColor}}${status}{/${statusColor}} {${priorityColor}}${priority}{/${priorityColor}} ${fromNow.padEnd(4)} ${projectName.padEnd(12)} ${truncatedContent}`;
   }
 
   private padWithWidth(str: string, targetWidth: number): string {
@@ -944,8 +960,6 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
 
   private updateHeader() {
     const headerContent = this.getHeaderContent();
-    // Debug: Show current filter and threshold in footer
-    this.footerBox.setContent(`DEBUG: Filter=${this.currentFilter}, Threshold=${this.activeThreshold} | ${this.getFilterDisplay()}`);
     this.headerBox.setContent(headerContent);
   }
 
@@ -979,9 +993,6 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     const currentIndex = thresholds.indexOf(this.activeThreshold);
     const newThreshold = thresholds[(currentIndex + 1) % thresholds.length];
     
-    // Debug: Add status to footer to confirm method is called
-    this.footerBox.setContent(`DEBUG: Threshold: ${this.activeThreshold} -> ${newThreshold}, Filter: ${this.currentFilter} -> active_only`);
-    
     this.activeThreshold = newThreshold;
     this.currentFilter = 'active_only';
     
@@ -1008,6 +1019,10 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
   }
 
   private promptProjectFilter() {
+    if (this.detailPopupVisible) {
+      this.hideDetailPopup();
+    }
+
     const inputBox = blessed.textbox({
       parent: this.screen,
       top: 'center',
@@ -1026,19 +1041,18 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
       mouse: true
     });
 
+    this.currentDetailPopup = inputBox;
+    this.detailPopupVisible = true;
     inputBox.setValue(this.projectFilter || '');
     
     inputBox.key(['escape'], () => {
-      this.screen.remove(inputBox);
-      this.tasksBox.focus();
-      this.screen.render();
+      this.hideDetailPopup();
     });
 
     inputBox.key(['enter'], () => {
       const value = inputBox.getValue().trim();
       this.projectFilter = value || null;
-      this.screen.remove(inputBox);
-      this.tasksBox.focus();
+      this.hideDetailPopup();
       this.refreshData();
     });
 
@@ -1117,11 +1131,6 @@ ${session.todos.map((todo, i) => {
 Press [Escape] to close`;
 
     popup.setContent(content);
-    
-    popup.key(['escape'], () => {
-      this.screen.remove(popup);
-      this.screen.render();
-    });
 
     this.screen.append(popup);
     popup.focus();
@@ -1196,11 +1205,6 @@ ${projectNode.children?.map((sessionNode, i) => {
 Press [Escape] to close`;
 
     popup.setContent(content);
-    
-    popup.key(['escape'], () => {
-      this.screen.remove(popup);
-      this.screen.render();
-    });
 
     this.screen.append(popup);
     popup.focus();
@@ -1208,7 +1212,7 @@ Press [Escape] to close`;
   }
 
   private showSessionDetails(sessionNode: TreeNode) {
-    const popup = blessed.box({
+    const popup = this.createDetailPopup({
       parent: this.screen,
       top: 'center',
       left: 'center',
@@ -1260,11 +1264,6 @@ ${sessionNode.children?.map((agentNode, i) => {
 Press [Escape] to close`;
 
     popup.setContent(content);
-    
-    popup.key(['escape'], () => {
-      this.screen.remove(popup);
-      this.screen.render();
-    });
 
     this.screen.append(popup);
     popup.focus();
@@ -1272,7 +1271,7 @@ Press [Escape] to close`;
   }
 
   private showDetailsPopup(session: SessionData, task: TodoItem) {
-    const popup = blessed.box({
+    const popup = this.createDetailPopup({
       parent: this.screen,
       top: 'center',
       left: 'center',
@@ -1316,18 +1315,60 @@ Press [Escape] to close`;
 
     popup.setContent(content);
 
-    popup.key(['escape'], () => {
-      this.screen.remove(popup);
-      this.screen.render();
-    });
-
     this.screen.append(popup);
     popup.focus();
     this.screen.render();
   }
 
+  private helpPopup: any = null;
+
+  private toggleHelp() {
+    if (this.helpVisible) {
+      this.hideHelp();
+    } else {
+      this.showHelp();
+    }
+  }
+
+  private hideHelp() {
+    if (this.helpPopup) {
+      this.screen.remove(this.helpPopup);
+      this.helpPopup = null;
+      this.helpVisible = false;
+      this.tasksBox.focus();
+      this.screen.render();
+    }
+  }
+
+  private hideDetailPopup() {
+    if (this.currentDetailPopup) {
+      this.screen.remove(this.currentDetailPopup);
+      this.currentDetailPopup = null;
+      this.detailPopupVisible = false;
+      this.tasksBox.focus();
+      this.screen.render();
+    }
+  }
+
+  private createDetailPopup(config: any) {
+    if (this.detailPopupVisible) {
+      this.hideDetailPopup();
+    }
+
+    this.currentDetailPopup = blessed.box(config);
+    this.detailPopupVisible = true;
+
+    this.currentDetailPopup.key(['escape'], () => {
+      this.hideDetailPopup();
+    });
+
+    return this.currentDetailPopup;
+  }
+
   private showHelp() {
-    const helpPopup = blessed.box({
+    if (this.helpVisible) return;
+
+    this.helpPopup = blessed.box({
       parent: this.screen,
       top: 'center',
       left: 'center',
@@ -1344,6 +1385,8 @@ Press [Escape] to close`;
       mouse: true,
       scrollable: true
     });
+
+    this.helpVisible = true;
 
     const helpContent = `{bold}Claude Code Task Monitor{/bold}
 
@@ -1409,16 +1452,21 @@ Press [Escape] to close`;
 
 Press [Escape], [Q], [F1], or [Enter] to close`;
 
-    helpPopup.setContent(helpContent);
+    this.helpPopup.setContent(helpContent);
 
-    helpPopup.key(['escape', 'q', 'f1', 'enter'], () => {
-      this.screen.remove(helpPopup);
-      this.tasksBox.focus();
-      this.screen.render();
+    this.helpPopup.key(['escape', 'q', 'f1', 'enter'], () => {
+      this.hideHelp();
     });
 
-    this.screen.append(helpPopup);
-    helpPopup.focus();
+    // Ensure help popup captures ESC before screen level handler
+    this.helpPopup.on('keypress', (ch: any, key: any) => {
+      if (key && key.name === 'escape') {
+        this.hideHelp();
+      }
+    });
+
+    this.screen.append(this.helpPopup);
+    this.helpPopup.focus();
     this.screen.render();
   }
 
