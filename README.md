@@ -112,18 +112,7 @@ ccm track                  # Internal tracking (auto-used)
 
 </details>
 
-## Setup
-
-**Automatic (Recommended):**
-```bash
-npm install -g vctool-claude-code-manager
-# Zero configuration needed
-```
-
-**Manual:**
-```bash
-ccm init && ccm init --check
-```
+## Design
 
 **Data Storage:**
 - Database: `~/.claude/db.sql` (local SQLite)
