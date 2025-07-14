@@ -67,14 +67,28 @@ class CCTaskMonitor {
   private watcherActive = false;
   private refreshInterval: NodeJS.Timeout | null = null;
   private currentFilter = 'all';
-  private sortBy = 'priority';
+  private sortBy = 'modified';
+  private displayMode = 'tree';
+  private reverseSort = false;
+  private projectFilter: string | null = null;
+  private refreshIntervalMs = 2000;
   private todoPath: string;
   private dbPath: string;
   private db: Database.Database | null = null;
 
-  constructor() {
+  constructor(options: MonitorOptions = {}) {
     this.todoPath = path.join(os.homedir(), '.claude', 'todos');
     this.dbPath = path.join(os.homedir(), '.claude', 'db.sql');
+    
+    // Apply options
+    if (options.displayMode) this.displayMode = options.displayMode;
+    if (options.order) this.sortBy = options.order;
+    if (options.filter) this.currentFilter = options.filter;
+    if (options.project) this.projectFilter = options.project;
+    if (options.reverse) this.reverseSort = true;
+    if (options.refreshInterval) {
+      this.refreshIntervalMs = parseInt(options.refreshInterval) * 1000;
+    }
     
     this.screen = blessed.screen({
       smartCSR: true,
@@ -111,7 +125,7 @@ class CCTaskMonitor {
       top: 4,
       left: 0,
       width: '100%',
-      height: '100%-6',
+      height: '100%-7',
       border: { type: 'line' },
       style: {
         fg: 'white',
@@ -134,7 +148,7 @@ class CCTaskMonitor {
       bottom: 0,
       left: 0,
       width: '100%',
-      height: 2,
+      height: 3,
       border: { type: 'line' },
       style: {
         fg: 'white',
@@ -142,7 +156,7 @@ class CCTaskMonitor {
         border: { fg: 'cyan' }
       },
       tags: true,
-      content: '[Tab]Filter [A]Active Only [Enter]Details [Space]Expand/Collapse [S]Sort [R]Refresh [Q]Quit'
+      content: '[Tab]Filter [A]Active [D]Display [S]Sort [V]Reverse [P]Project [C]Clear [+/-]Speed [F1]Help [Q]Quit'
     });
   }
 
@@ -233,6 +247,44 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     this.screen.key(['a'], () => {
       this.currentFilter = 'active_only';
       this.refreshData();
+    });
+
+    // Display mode cycling
+    this.screen.key(['d'], () => {
+      this.cycleDisplayMode();
+    });
+
+    // Reverse sort toggle
+    this.screen.key(['v'], () => {
+      this.reverseSort = !this.reverseSort;
+      this.refreshData();
+    });
+
+    // Clear project filter
+    this.screen.key(['c'], () => {
+      this.projectFilter = null;
+      this.refreshData();
+    });
+
+    // Set project filter (prompt for input)
+    this.screen.key(['p'], () => {
+      this.promptProjectFilter();
+    });
+
+    // Increase refresh interval
+    this.screen.key(['+'], () => {
+      this.refreshIntervalMs = Math.min(this.refreshIntervalMs + 1000, 30000);
+      this.restartRefreshTimer();
+      this.updateHeader();
+      this.screen.render();
+    });
+
+    // Decrease refresh interval
+    this.screen.key(['-'], () => {
+      this.refreshIntervalMs = Math.max(this.refreshIntervalMs - 1000, 1000);
+      this.restartRefreshTimer();
+      this.updateHeader();
+      this.screen.render();
     });
   }
 
@@ -360,10 +412,14 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
 
     // Add projects
     for (const [projectPath, projectInfo] of this.projectsData) {
+      // Apply project filter if specified
+      if (this.projectFilter && !projectPath.includes(this.projectFilter)) {
+        continue;
+      }
       const projectNode: TreeNode = {
         id: projectPath,
         type: 'project',
-        label: `📁 ${projectInfo.projectName}`,
+        label: `📁 ${projectInfo.projectPath}`,
         level: 1,
         expanded: true,
         children: [],
@@ -575,19 +631,69 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
         const todoA = a.data.todo;
         const todoB = b.data.todo;
         
+        let result = 0;
+        
         switch (this.sortBy) {
           case 'priority':
             const priorityOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
-            return (priorityOrder[todoB.priority] || 0) - (priorityOrder[todoA.priority] || 0);
+            result = (priorityOrder[todoB.priority] || 0) - (priorityOrder[todoA.priority] || 0);
+            break;
           case 'status':
             const statusOrder: Record<string, number> = { in_progress: 3, pending: 2, completed: 1 };
-            return (statusOrder[todoB.status] || 0) - (statusOrder[todoA.status] || 0);
+            result = (statusOrder[todoB.status] || 0) - (statusOrder[todoA.status] || 0);
+            break;
+          case 'modified':
+            // Sort by session lastModified time (newest first)
+            const sessionA = a.data.session;
+            const sessionB = b.data.session;
+            result = sessionB.lastModified.getTime() - sessionA.lastModified.getTime();
+            break;
+          case 'ascii':
+            result = todoA.content.localeCompare(todoB.content);
+            break;
           default:
-            return todoA.content.localeCompare(todoB.content);
+            result = todoA.content.localeCompare(todoB.content);
         }
+        
+        return this.reverseSort ? -result : result;
       }
 
-      return a.label.localeCompare(b.label);
+      // Sort non-task nodes by modified time when sortBy is 'modified'
+      if (this.sortBy === 'modified') {
+        // Get the most recent modification time for each node
+        const getLatestModified = (node: TreeNode): number => {
+          if (node.type === 'project') {
+            let latest = 0;
+            const projectData = node.data;
+            if (projectData && projectData.sessions) {
+              for (const sessions of projectData.sessions.values()) {
+                for (const session of sessions) {
+                  latest = Math.max(latest, session.lastModified.getTime());
+                }
+              }
+            }
+            return latest;
+          } else if (node.type === 'session') {
+            let latest = 0;
+            const sessionData = node.data;
+            if (sessionData && sessionData.sessions) {
+              for (const session of sessionData.sessions) {
+                latest = Math.max(latest, session.lastModified.getTime());
+              }
+            }
+            return latest;
+          } else if (node.type === 'agent') {
+            return node.data.lastModified.getTime();
+          }
+          return 0;
+        };
+        
+        const result = getLatestModified(b) - getLatestModified(a);
+        return this.reverseSort ? -result : result;
+      }
+      
+      const result = a.label.localeCompare(b.label);
+      return this.reverseSort ? -result : result;
     });
 
     // Recursively sort children
@@ -606,18 +712,67 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
     return result;
   }
 
+  private getAllTasks(): TreeNode[] {
+    const tasks: TreeNode[] = [];
+    
+    const collectTasks = (node: TreeNode) => {
+      if (node.type === 'task') {
+        tasks.push(node);
+      }
+      
+      if (node.children) {
+        for (const child of node.children) {
+          collectTasks(child);
+        }
+      }
+    };
+    
+    if (this.treeRoot) {
+      collectTasks(this.treeRoot);
+    }
+    
+    return tasks;
+  }
+
   private updateTasksTree() {
     if (!this.treeRoot) return;
 
-    this.flattenedTree = this.flattenTree(this.treeRoot).slice(1); // Skip root node
+    let items: string[] = [];
     
-    const items = this.flattenedTree.map(node => {
-      const indent = '  '.repeat(node.level - 1);
-      const expandIcon = node.children && node.children.length > 0 ? 
-        (node.expanded ? '▼ ' : '▶ ') : '  ';
-      
-      return `${indent}${expandIcon}${node.label}`;
-    });
+    switch (this.displayMode) {
+      case 'tree':
+        this.flattenedTree = this.flattenTree(this.treeRoot).slice(1); // Skip root node
+        items = this.flattenedTree.map(node => {
+          const indent = '  '.repeat(node.level - 1);
+          const expandIcon = node.children && node.children.length > 0 ? 
+            (node.expanded ? '▼ ' : '▶ ') : '  ';
+          
+          return `${indent}${expandIcon}${node.label}`;
+        });
+        break;
+        
+      case 'flat':
+        this.flattenedTree = this.getAllTasks();
+        items = this.flattenedTree.map(node => node.label);
+        break;
+        
+      case 'list':
+        this.flattenedTree = this.getAllTasks();
+        items = this.flattenedTree.map((node, index) => {
+          return `${index + 1}. ${node.label}`;
+        });
+        break;
+        
+      default:
+        this.flattenedTree = this.flattenTree(this.treeRoot).slice(1);
+        items = this.flattenedTree.map(node => {
+          const indent = '  '.repeat(node.level - 1);
+          const expandIcon = node.children && node.children.length > 0 ? 
+            (node.expanded ? '▼ ' : '▶ ') : '  ';
+          
+          return `${indent}${expandIcon}${node.label}`;
+        });
+    }
 
     this.tasksBox.setItems(items);
     
@@ -670,10 +825,67 @@ Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay}
   }
 
   private cycleSortBy() {
-    const sortOptions = ['priority', 'status', 'modified', 'session'];
+    const sortOptions = ['priority', 'status', 'modified', 'ascii'];
     const currentIndex = sortOptions.indexOf(this.sortBy);
     this.sortBy = sortOptions[(currentIndex + 1) % sortOptions.length];
     this.refreshData();
+  }
+
+  private cycleDisplayMode() {
+    const displayModes = ['tree', 'flat', 'list'];
+    const currentIndex = displayModes.indexOf(this.displayMode);
+    this.displayMode = displayModes[(currentIndex + 1) % displayModes.length];
+    this.refreshData();
+  }
+
+  private restartRefreshTimer() {
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+    
+    this.refreshInterval = setInterval(() => {
+      this.refreshData();
+    }, this.refreshIntervalMs);
+  }
+
+  private promptProjectFilter() {
+    const inputBox = blessed.textbox({
+      parent: this.screen,
+      top: 'center',
+      left: 'center',
+      width: '50%',
+      height: 5,
+      border: { type: 'line' },
+      style: {
+        fg: 'white',
+        bg: 'black',
+        border: { fg: 'cyan' }
+      },
+      label: 'Project Filter (partial path)',
+      inputOnFocus: true,
+      keys: true,
+      mouse: true
+    });
+
+    inputBox.setValue(this.projectFilter || '');
+    
+    inputBox.key(['escape'], () => {
+      this.screen.remove(inputBox);
+      this.tasksBox.focus();
+      this.screen.render();
+    });
+
+    inputBox.key(['enter'], () => {
+      const value = inputBox.getValue().trim();
+      this.projectFilter = value || null;
+      this.screen.remove(inputBox);
+      this.tasksBox.focus();
+      this.refreshData();
+    });
+
+    this.screen.append(inputBox);
+    inputBox.focus();
+    this.screen.render();
   }
 
   private showTaskDetails() {
@@ -964,16 +1176,33 @@ Press [Escape] to close`;
       scrollable: true
     });
 
-    const helpContent = `{bold}Claude Code Task Monitor - Tree View{/bold}
+    const helpContent = `{bold}Claude Code Task Monitor{/bold}
+
+{bold}Current Settings:{/bold}
+  Display Mode: ${this.displayMode}
+  Sort By: ${this.sortBy}${this.reverseSort ? ' (reversed)' : ''}
+  Filter: ${this.currentFilter}
+  ${this.projectFilter ? `Project Filter: ${this.projectFilter}` : 'Project Filter: (none)'}
+  Refresh Interval: ${this.refreshIntervalMs / 1000}s
 
 {bold}Navigation:{/bold}
   ↑/↓ or j/k    - Move selection up/down
-  Space         - Expand/collapse tree nodes
+  Space         - Expand/collapse tree nodes (tree mode only)
   Enter         - Show details (project/session/agent/task)
-  Tab           - Cycle through filters (all/pending/in_progress/completed/active_only)
+
+{bold}Filtering & Sorting:{/bold}
+  Tab           - Cycle through filters (all/pending/in_progress/completed/active)
   A             - Quick switch to Active Only filter
-  S             - Cycle through sort options (priority/status/modified/session)
-  R             - Refresh data
+  S             - Cycle through sort options (priority/status/modified/ascii)
+  V             - Toggle reverse sort order
+  P             - Set project filter (input dialog)
+  C             - Clear project filter
+
+{bold}Display & Settings:{/bold}
+  D             - Cycle display mode (tree/flat/list)
+  +             - Increase refresh interval
+  -             - Decrease refresh interval
+  R             - Refresh data manually
   F1            - Show this help
   Q or Esc      - Quit
 
@@ -1009,12 +1238,13 @@ Press [Escape] to close`;
   • Completed: Show only completed tasks
   • Active Only: Show only pending + in-progress tasks
 
-Press [Escape] to close`;
+Press [Escape], [Q], [F1], or [Enter] to close`;
 
     helpPopup.setContent(helpContent);
 
-    helpPopup.key(['escape'], () => {
+    helpPopup.key(['escape', 'q', 'f1', 'enter'], () => {
       this.screen.remove(helpPopup);
+      this.tasksBox.focus();
       this.screen.render();
     });
 
@@ -1031,7 +1261,7 @@ Press [Escape] to close`;
     // Start refresh interval
     this.refreshInterval = setInterval(() => {
       this.refreshData();
-    }, 2000); // Update every 2 seconds
+    }, this.refreshIntervalMs);
 
     // Watch for file changes
     try {
@@ -1067,7 +1297,16 @@ Press [Escape] to close`;
   }
 }
 
-export async function monitorCommand() {
-  const monitor = new CCTaskMonitor();
+interface MonitorOptions {
+  displayMode?: string;
+  order?: string;
+  filter?: string;
+  project?: string;
+  reverse?: boolean;
+  refreshInterval?: string;
+}
+
+export async function monitorCommand(options: MonitorOptions = {}) {
+  const monitor = new CCTaskMonitor(options);
   await monitor.start();
 }

@@ -75,6 +75,12 @@ program
 program
   .command('monitor')
   .description('Real-time monitoring of Claude Code tasks (htop-like interface)')
+  .option('--display-mode <mode>', 'Display mode: tree, flat, list', 'tree')
+  .option('--order <order>', 'Sort order: modified, priority, status, ascii', 'modified')
+  .option('--filter <filter>', 'Filter: all, pending, in_progress, completed, active', 'all')
+  .option('--project <project>', 'Filter by project path')
+  .option('--reverse', 'Reverse sort order')
+  .option('--refresh-interval <seconds>', 'Refresh interval in seconds', '2')
   .action(monitorCommand);
 
 program.parse();
