@@ -6,7 +6,7 @@ A CLI tool for managing Claude Code workflows with automatic execution tracking 
 
 ```bash
 npm install -g vctool-claude-code-manager
-ccm stat --analyzer
+ccm monitor
 ```
 
 ## Features
@@ -19,23 +19,15 @@ ccm stat --analyzer
 ## Commands
 
 <details>
-<summary><code>ccm stat</code> - Project Analytics</summary>
+<summary><code>ccm init</code> - Setup & Management</summary>
 
-View session statistics and conversation history.
+Initialize and manage tracking system.
 
 ```bash
-ccm stat                    # Basic project overview
-ccm stat --current         # Current project only
-ccm stat --analyzer        # Interactive web analyzer
-ccm stat --output-path     # Export data
+ccm init                   # Set up tracking
+ccm init --check           # Verify setup
+ccm init --force           # Force reinitialize
 ```
-
-**Options:**
-- `--current` - Show current project only
-- `--analyzer` - Open web-based analyzer
-- `--output-path <path>` - Export data (JSON/Markdown)
-- `--full-message` - Show full conversation history
-- `--with-ai` - Include AI responses
 
 </details>
 
@@ -79,15 +71,20 @@ ccm usage blocks --live    # Real-time dashboard
 </details>
 
 <details>
-<summary><code>ccm init</code> - Setup & Management</summary>
+<summary><code>ccm stat</code> - Project Analytics</summary>
 
-Initialize and manage tracking system.
+View session statistics and export data.
 
 ```bash
-ccm init                   # Set up tracking
-ccm init --check           # Verify setup
-ccm init --force           # Force reinitialize
+ccm stat --analyzer        # Interactive web analyzer
+ccm stat --output-path     # Export data
 ```
+
+**Options:**
+- `--analyzer` - Open web-based analyzer
+- `--output-path <path>` - Export data (JSON/Markdown)
+- `--current` - Current project only
+- `--with-ai` - Include AI responses
 
 </details>
 
