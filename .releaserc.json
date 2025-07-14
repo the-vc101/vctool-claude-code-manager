@@ -1,7 +1,10 @@
 {
   "branches": ["main"],
+  "repositoryUrl": "https://github.com/MarkShawn2020/claude-code-manager.git",
   "plugins": [
-    "@semantic-release/commit-analyzer",
+    ["@semantic-release/commit-analyzer", {
+      "preset": "conventionalcommits"
+    }],
     "@semantic-release/release-notes-generator",
     "@semantic-release/changelog",
     ["@semantic-release/npm", {
