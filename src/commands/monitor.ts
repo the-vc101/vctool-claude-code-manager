@@ -76,6 +76,8 @@ class CCTaskMonitor {
   private todoPath: string;
   private dbPath: string;
   private db: Database.Database | null = null;
+  private lastDisplayedLines = 0; // Track last displayed line count
+  private tasksBoxConfig: any; // Store original tasksBox configuration
 
   constructor(options: MonitorOptions = {}) {
     this.todoPath = path.join(os.homedir(), '.claude', 'todos');
@@ -95,10 +97,11 @@ class CCTaskMonitor {
     }
     
     this.screen = blessed.screen({
-      smartCSR: true,
-      title: 'Claude Code Task Monitor',
+      smartCSR: false,
+      title: 'Claude Code Task Monitor', 
       dockBorders: true,
-      fullUnicode: true,
+      fullUnicode: false, // Disable unicode to fix rendering issues
+      fastCSR: false,
     });
 
     this.initializeUI();
@@ -123,8 +126,8 @@ class CCTaskMonitor {
       content: this.getHeaderContent()
     });
 
-    // Main tasks tree
-    this.tasksBox = blessed.list({
+    // Main tasks tree - store config for potential rebuilding
+    this.tasksBoxConfig = {
       parent: this.screen,
       top: 4,
       left: 0,
@@ -144,7 +147,9 @@ class CCTaskMonitor {
       scrollable: true,
       alwaysScroll: true,
       items: []
-    });
+    };
+    
+    this.tasksBox = blessed.list(this.tasksBoxConfig);
 
     // Footer box
     this.footerBox = blessed.box({
@@ -182,18 +187,18 @@ class CCTaskMonitor {
     // Right-aligned status info
     const statusInfo = `Mode: ${displayMode} | Sort: ${sortBy} | ${refreshInterval} | [{green-fg}●{/green-fg}] Live`;
     
-    return `{bold}Claude Code Task Monitor{/bold}
-Tasks: {yellow-fg}${pendingCount.toString().padStart(2)} PEND{/yellow-fg} | {blue-fg}${inProgressCount.toString().padStart(2)} PROG{/blue-fg} | {green-fg}${completedCount.toString().padStart(2)} DONE{/green-fg} | Total: {bold}${activeCount.toString().padStart(2)} ACTIVE{/bold}
-Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}${sessionCount.toString().padStart(2)}{/bold} | Filter: ${filterDisplay} | ${statusInfo}`;
+    return `Claude Code Task Monitor [DEBUG: ${this.activeThreshold}]
+Tasks: ${pendingCount} PEND | ${inProgressCount} PROG | ${completedCount} DONE | Total: ${activeCount} ACTIVE
+Projects: ${projectCount} | Sessions: ${sessionCount} | Filter: ${filterDisplay} | ${statusInfo}`;
   }
 
   private getFilterDisplay(): string {
     switch (this.currentFilter) {
-      case 'all': return '{white-fg}ALL{/white-fg}';
-      case 'pending': return '{yellow-fg}PEND{/yellow-fg}';
-      case 'in_progress': return '{blue-fg}PROG{/blue-fg}';
-      case 'completed': return '{green-fg}DONE{/green-fg}';
-      case 'active_only': return `{cyan-fg}ACTIVE-${this.activeThreshold.toUpperCase()}{/cyan-fg}`;
+      case 'all': return 'ALL';
+      case 'pending': return 'PEND';
+      case 'in_progress': return 'PROG';
+      case 'completed': return 'DONE';
+      case 'active_only': return `ACTIVE-${this.activeThreshold.toUpperCase()}`;
       default: return this.currentFilter.toUpperCase();
     }
   }
@@ -226,7 +231,6 @@ Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}
     });
 
     this.screen.key(['r'], () => {
-      this.clearScreen();
       this.refreshData();
     });
 
@@ -267,7 +271,6 @@ Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}
     // Reverse sort toggle
     this.screen.key(['v'], () => {
       this.reverseSort = !this.reverseSort;
-      this.clearScreen();
       this.refreshData();
     });
 
@@ -408,6 +411,9 @@ Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}
     this.updateTasksTree();
     this.updateHeader();
     this.screen.render();
+    
+    // Update line count after refreshing
+    this.lastDisplayedLines = this.flattenedTree.length;
   }
 
   private buildTreeStructure() {
@@ -616,30 +622,18 @@ Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}
   }
 
   private formatTaskLabel(todo: TodoItem, session?: SessionData): string {
-    const statusIcon = this.getStatusIcon(todo.status);
-    const priorityIcon = this.getPriorityIcon(todo.priority);
-    const statusColor = this.getStatusColor(todo.status);
-    const priorityColor = this.getPriorityColor(todo.priority);
-    
-    // Use short, fixed-width status display
-    const statusDisplay = this.getShortStatus(todo.status);
-    const priorityDisplay = this.getShortPriority(todo.priority);
-    
-    // Add fromNow and projectName columns
+    // Ultra-simple ASCII-only formatting to fix rendering issues
+    const status = todo.status === 'pending' ? 'PEND' : todo.status === 'in_progress' ? 'PROG' : 'DONE';
+    const priority = todo.priority === 'high' ? 'HI' : todo.priority === 'medium' ? 'MD' : 'LO';
     const fromNow = session ? this.getFromNow(session.lastModified) : '';
     const projectName = session?.projectPath ? this.getProjectName(session.projectPath) : 'Unknown';
     
-    // Use tab-separated columns for consistent alignment
-    const statusPart = `${statusIcon} {${statusColor}}${statusDisplay}{/${statusColor}}`;
-    const priorityPart = `${priorityIcon} {${priorityColor}}${priorityDisplay}{/${priorityColor}}`;
-    const timePart = fromNow.padEnd(6);
-    const projectPart = this.padWithWidth(projectName, 12);
+    // Clean content - remove all non-ASCII characters
+    const cleanContent = todo.content.replace(/[^\x20-\x7E]/g, '?').replace(/\s+/g, ' ').trim();
+    const truncatedContent = cleanContent.length > 40 ? cleanContent.substring(0, 40) + '...' : cleanContent;
     
-    // Calculate content with proper width handling  
-    const contentMaxWidth = 45;
-    const truncatedContent = this.truncateWithWidth(todo.content, contentMaxWidth);
-    
-    return `${statusPart}\t${priorityPart}\t${timePart}\t${projectPart}\t${truncatedContent}`;
+    // Use simple space-separated format
+    return `${status.padEnd(4)} ${priority.padEnd(2)} ${fromNow.padEnd(4)} ${projectName.padEnd(12)} ${truncatedContent}`;
   }
 
   private padWithWidth(str: string, targetWidth: number): string {
@@ -949,37 +943,20 @@ Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}
   }
 
   private updateHeader() {
-    this.headerBox.setContent(this.getHeaderContent());
+    const headerContent = this.getHeaderContent();
+    // Debug: Show current filter and threshold in footer
+    this.footerBox.setContent(`DEBUG: Filter=${this.currentFilter}, Threshold=${this.activeThreshold} | ${this.getFilterDisplay()}`);
+    this.headerBox.setContent(headerContent);
   }
 
   private clearScreen() {
-    // Step 1: Clear existing content
+    // Back to basics: minimal clearing to avoid flicker
     this.tasksBox.clearItems();
-    
-    // Step 2: Calculate dimensions with safety margins
-    const boxWidth = Math.max((this.tasksBox.width as number) - 2, 100);
-    const boxHeight = Math.max((this.tasksBox.height as number) - 2, 30);
-    
-    // Step 3: Create overwrite content with extra wide spaces
-    const wideEmptyLine = ' '.repeat(Math.max(boxWidth, 200)); // Ensure full width coverage
-    const emptyLines = Array(Math.max(boxHeight, 50)).fill(wideEmptyLine); // Ensure full height coverage
-    
-    // Step 4: Multiple render cycles to ensure overwrite
-    this.tasksBox.setItems(emptyLines);
-    this.screen.render();
-    
-    // Step 5: Force a second overwrite with different content to break any caching
-    const clearLines = Array(Math.max(boxHeight, 50)).fill(''.padEnd(Math.max(boxWidth, 200)));
-    this.tasksBox.setItems(clearLines);
-    this.screen.render();
-    
-    // Step 6: Final cleanup
-    this.tasksBox.clearItems();
-    this.tasksBox.setItems([]);
-    
-    // Step 7: Force screen reallocation to reset state
-    this.screen.realloc();
-    this.screen.render();
+  }
+  
+  private bindTasksBoxEvents() {
+    // No need to re-bind - all events are on screen level, not tasksBox level
+    // This method exists for future extensibility
   }
 
   private cycleFilter() {
@@ -987,7 +964,6 @@ Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}
     const currentIndex = filters.indexOf(this.currentFilter);
     this.currentFilter = filters[(currentIndex + 1) % filters.length];
     
-    this.clearScreen();
     this.refreshData();
   }
 
@@ -1001,12 +977,14 @@ Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}
   private cycleActiveThreshold() {
     const thresholds = ['recent', 'today', 'week', 'all'];
     const currentIndex = thresholds.indexOf(this.activeThreshold);
-    this.activeThreshold = thresholds[(currentIndex + 1) % thresholds.length];
+    const newThreshold = thresholds[(currentIndex + 1) % thresholds.length];
     
-    // Set filter to active_only when using active threshold
+    // Debug: Add status to footer to confirm method is called
+    this.footerBox.setContent(`DEBUG: Threshold: ${this.activeThreshold} -> ${newThreshold}, Filter: ${this.currentFilter} -> active_only`);
+    
+    this.activeThreshold = newThreshold;
     this.currentFilter = 'active_only';
     
-    this.clearScreen();
     this.refreshData();
   }
 
@@ -1015,7 +993,7 @@ Projects: {bold}${projectCount.toString().padStart(2)}{/bold} | Sessions: {bold}
     const currentIndex = displayModes.indexOf(this.displayMode);
     this.displayMode = displayModes[(currentIndex + 1) % displayModes.length];
     
-    this.clearScreen();
+    // Just refresh data - let blessed handle the rendering naturally
     this.refreshData();
   }
 
