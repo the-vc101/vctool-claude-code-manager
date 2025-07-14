@@ -32,6 +32,33 @@ ccm init --force           # Force reinitialize
 </details>
 
 <details>
+<summary><code>ccm stat</code> - View/Export Chats By Project</summary>
+
+View session statistics and export data.
+
+**Options:**
+- `--analyzer` - Open web-based analyzer
+- `--output-path <path>` - Export data (JSON/Markdown)
+- `--current` - Current project only
+- `--with-ai` - Include AI responses
+
+```bash
+ccm stat --analyzer        # Interactive web analyzer
+ccm stat --output-path     # Export data
+```
+
+![`ccm stat --analyzer`](assets/ccm-stat-analyzer-demo.png)
+
+
+```bash
+ccm stat --current
+```
+
+![`ccm stat --current`](assets/ccm-current-user-messages.png)
+
+</details>
+
+<details>
 <summary><code>ccm monitor</code> - Real-time Task Monitoring</summary>
 
 htop-like interface for Claude Code tasks with hierarchical view.
@@ -69,33 +96,6 @@ ccm usage blocks --live    # Real-time dashboard
 - `--until <date>` - End date filter (YYYYMMDD)
 - `--breakdown` - Show per-model costs
 - `--json` - JSON output
-
-</details>
-
-<details>
-<summary><code>ccm stat</code> - Project Analytics</summary>
-
-View session statistics and export data.
-
-**Options:**
-- `--analyzer` - Open web-based analyzer
-- `--output-path <path>` - Export data (JSON/Markdown)
-- `--current` - Current project only
-- `--with-ai` - Include AI responses
-
-```bash
-ccm stat --analyzer        # Interactive web analyzer
-ccm stat --output-path     # Export data
-```
-
-![`ccm stat --analyzer`](assets/ccm-stat-analyzer-demo.png)
-
-
-```bash
-ccm stat --current
-```
-
-![`ccm stat --current`](assets/ccm-current-user-messages.png)
 
 </details>
 
