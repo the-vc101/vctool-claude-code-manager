@@ -1,117 +1,131 @@
-# Claude Code Manager (CCM)
+# Claude Code Manager
 
-A powerful CLI tool for managing Claude Code workflows with **automatic execution tracking** and analytics.
+A CLI tool for managing Claude Code workflows with automatic execution tracking and analytics.
 
-## ✨ Installation
+## Quick Start
 
 ```bash
 npm install -g vctool-claude-code-manager
-```
-
-## 🚀 Quick Start
-
-```bash
-# Interactive analyzer with timeline
 ccm stat --analyzer
-
-# Current project statistics  
-ccm stat --current --full-message
-
-# Real-time task monitoring
-ccm monitor
-
-# Analyze your usage and costs
-ccm usage daily --breakdown
 ```
 
-## ⭐ Key Features
+## Features
 
-### 📈 **Automatic Execution Tracking**
-- Zero configuration - works immediately after installation
-- Timeline visualization with D3.js
-- Success/error tracking with visual indicators
-- Real-time filtering and analysis
-- Privacy-first local storage
-
-### 🔍 **Interactive Web Analyzer**
-- Modern web dashboard with three views:
-  - Overview - project statistics and charts
-  - Treemap - visual project size comparison
-  - Timeline - interactive execution pattern analysis
-- Responsive design for desktop and mobile
-
-### 📊 **Session Analytics**
-- Detailed project breakdowns and statistics
-- Full conversation history analysis
-- Current project focus and filtering
-- Comprehensive token usage and cost analysis
-
-### 🛠️ **Project Management & Monitoring**
-- Smart backup and cleanup utilities
-- Real-time task monitoring (htop-like interface)
-- Project tracking and organization
-- Usage monitoring and optimization
-
-## Requirements
-
-- Node.js >= 18.0.0
-- Claude Code installed and configured
+- 📈 **Automatic Execution Tracking** - Zero config, works immediately
+- 🔍 **Interactive Web Analyzer** - Timeline visualization with D3.js
+- 📊 **Session Analytics** - Project breakdowns and conversation history
+- 🛠️ **Real-time Task Monitoring** - htop-like interface for Claude Code tasks
 
 ## Commands
 
-### `ccm stat` - Project Analytics
-- View session statistics and conversation history
-- Interactive web analyzer with timeline visualization
-- Export data in JSON/Markdown formats
+<details>
+<summary><code>ccm stat</code> - Project Analytics</summary>
 
-### `ccm monitor` - Real-time Task Monitoring
-- htop-like interface for Claude Code tasks
-- Hierarchical view: Project → Session → Agent → Task
-- Real-time updates with filtering and sorting
+View session statistics and conversation history.
 
-### `ccm usage` - Token Analysis
-- Daily/monthly usage reports with cost breakdown
-- Session-level analysis and real-time monitoring
-- Wrapper for ccusage package
+```bash
+ccm stat                    # Basic project overview
+ccm stat --current         # Current project only
+ccm stat --analyzer        # Interactive web analyzer
+ccm stat --output-path     # Export data
+```
 
-### `ccm init` - Setup & Management
-- Initialize tracking system
-- Verify setup status
-- Force reinitialize if needed
+**Options:**
+- `--current` - Show current project only
+- `--analyzer` - Open web-based analyzer
+- `--output-path <path>` - Export data (JSON/Markdown)
+- `--full-message` - Show full conversation history
+- `--with-ai` - Include AI responses
 
-### Utilities
-- `ccm backup` - Backup Claude config
-- `ccm slim` - Clean up old project entries
-- `ccm track` - Internal tracking command
+</details>
 
-## Setup & Configuration
+<details>
+<summary><code>ccm monitor</code> - Real-time Task Monitoring</summary>
 
-### Automatic Setup (Recommended)
+htop-like interface for Claude Code tasks with hierarchical view.
+
+```bash
+ccm monitor
+```
+
+**Controls:**
+- `Tab` - Filter tasks (all/pending/active/completed)
+- `Space` - Expand/collapse tree nodes
+- `Enter` - Show task details
+- `A` - Active tasks only
+- `Q` - Quit
+
+**Tree Structure:** Project → Session → Agent → Task
+
+</details>
+
+<details>
+<summary><code>ccm usage</code> - Token Analysis</summary>
+
+Analyze Claude Code token usage and costs.
+
+```bash
+ccm usage daily            # Daily usage report
+ccm usage monthly          # Monthly aggregated report
+ccm usage blocks --live    # Real-time dashboard
+```
+
+**Options:**
+- `--since <date>` - Start date filter (YYYYMMDD)
+- `--until <date>` - End date filter (YYYYMMDD)
+- `--breakdown` - Show per-model costs
+- `--json` - JSON output
+
+</details>
+
+<details>
+<summary><code>ccm init</code> - Setup & Management</summary>
+
+Initialize and manage tracking system.
+
+```bash
+ccm init                   # Set up tracking
+ccm init --check           # Verify setup
+ccm init --force           # Force reinitialize
+```
+
+</details>
+
+<details>
+<summary>Utilities</summary>
+
+Additional tools for project management.
+
+```bash
+ccm backup                 # Backup Claude config
+ccm slim                   # Clean up old entries
+ccm track                  # Internal tracking (auto-used)
+```
+
+</details>
+
+## Setup
+
+**Automatic (Recommended):**
 ```bash
 npm install -g vctool-claude-code-manager
-# That's it! Tracking is automatically configured
+# Zero configuration needed
 ```
 
-### Manual Setup (Advanced)
+**Manual:**
 ```bash
-ccm init                      # Initialize tracking manually
-ccm init --check              # Verify setup status
+ccm init && ccm init --check
 ```
 
-### Data Storage
-- **Database**: `~/.claude/db.sql` (SQLite, local storage)
-- **Hooks Config**: `~/.claude/settings.json` (auto-configured)
-- **Privacy**: No data sent to external servers
+**Data Storage:**
+- Database: `~/.claude/db.sql` (local SQLite)
+- Config: `~/.claude/settings.json` (auto-configured)
 
-## Links & Resources
+## Links
 
-- **GitHub**: [https://github.com/markshawn2020/vctool-claude-code-manager](https://github.com/markshawn2020/vctool-claude-code-manager)
-- **NPM**: [https://www.npmjs.com/package/vctool-claude-code-manager](https://www.npmjs.com/package/vctool-claude-code-manager)
-
-## License
-
-ISC
+- [GitHub](https://github.com/markshawn2020/vctool-claude-code-manager)
+- [NPM](https://www.npmjs.com/package/vctool-claude-code-manager)
 
 ---
 
-**Made for Claude Code power users** 🚀
+**Requirements:** Node.js >= 18.0.0 + Claude Code
