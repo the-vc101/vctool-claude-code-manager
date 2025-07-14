@@ -7,7 +7,7 @@ Automatic execution tracking for Claude Code with timeline visualization.
 Just install and start using Claude Code! Everything is automatic:
 
 ```bash
-npm install -g vctool-claude-code-manager
+npm install -g claude-code-manager
 ```
 
 That's it! 🎉
@@ -160,7 +160,7 @@ The timeline visualization provides:
 ## Troubleshooting
 
 ### Tracking not working
-- Reinstall globally: `npm install -g vctool-claude-code-manager`
+- Reinstall globally: `npm install -g claude-code-manager`
 - Check setup status: `ccm init --check`
 - Manual setup: `ccm init`
 - Run Claude Code with `--debug` to see hook execution logs

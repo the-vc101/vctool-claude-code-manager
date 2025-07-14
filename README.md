@@ -5,7 +5,7 @@ A CLI tool for managing Claude Code workflows with automatic execution tracking 
 ## Quick Start
 
 ```bash
-npm install -g vctool-claude-code-manager
+npm install -g claude-code-manager
 ccm init
 ```
 
@@ -120,8 +120,8 @@ ccm track                  # Internal tracking (auto-used)
 
 ## Links
 
-- [GitHub](https://github.com/markshawn2020/vctool-claude-code-manager)
-- [NPM](https://www.npmjs.com/package/vctool-claude-code-manager)
+- [GitHub](https://github.com/markshawn2020/claude-code-manager)
+- [NPM](https://www.npmjs.com/package/claude-code-manager)
 
 ---
 

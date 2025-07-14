@@ -82,6 +82,6 @@ if (isGlobalInstall || forceSetup) {
   setupAutoTracking();
 } else {
   console.log('🔧 Claude Code Manager installed locally');
-  console.log('💡 For automatic tracking setup, install globally: npm install -g vctool-claude-code-manager');
+  console.log('💡 For automatic tracking setup, install globally: npm install -g claude-code-manager');
   console.log('🔧 Or run manually: npx ccm init');
 }

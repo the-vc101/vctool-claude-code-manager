@@ -1,5 +1,5 @@
 {
-  "name": "vctool-claude-code-manager",
+  "name": "claude-code-manager",
   "version": "1.5.5",
   "description": "A CLI tool to assist with Claude Code vibe coding workflows",
   "main": "dist/index.js",

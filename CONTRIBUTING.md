@@ -14,8 +14,8 @@ Thank you for your interest in contributing to CCM! This document provides guide
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/markshawn2020/vctool-claude-code-manager
-   cd vctool-claude-code-manager
+   git clone https://github.com/markshawn2020/claude-code-manager
+   cd claude-code-manager
    ```
 
 2. **Install dependencies**
