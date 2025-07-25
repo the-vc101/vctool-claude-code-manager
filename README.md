@@ -100,6 +100,31 @@ ccm usage blocks --live    # Real-time dashboard
 </details>
 
 <details>
+<summary><code>ccm memory</code> - Memory Discovery</summary>
+
+Discover all Claude Code memory files (CLAUDE.md and CLAUDE.local.md) across your system with hierarchical display.
+
+```bash
+ccm memory                        # Show all memories with preview
+ccm memory --paths-only           # List paths only  
+ccm memory --full                 # Show full content
+ccm memory --exclude node_modules dist  # Exclude directories
+```
+
+**Discovery Sources:**
+- 🌍 **Global** - `~/.claude/` directory for project-independent memories
+- 🔼 **Parent** - Ancestor directories up to root
+- 📍 **Current** - Working directory  
+- 🔽 **Subtree** - Nested subdirectories
+
+**Options:**
+- `--paths-only` - Show only file paths without content preview
+- `--full` - Display complete file contents
+- `--exclude <patterns...>` - Exclude directories from subtree search
+
+</details>
+
+<details>
 <summary>Utilities</summary>
 
 Additional tools for project management.
