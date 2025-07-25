@@ -27,8 +27,8 @@ pnpm install
 ## Architecture
 
 ### Core Structure
-- **Entry point:** `src/cli.ts` - Commander.js-based CLI with 7 main commands
-- **Commands:** `src/commands/` - Each command is a separate module (init, stat, monitor, usage, backup, slim, track)
+- **Entry point:** `src/cli.ts` - Commander.js-based CLI with 8 main commands
+- **Commands:** `src/commands/` - Each command is a separate module (init, stat, monitor, usage, backup, slim, track, memory)
 - **Templates:** `src/templates/` - HTML templates for web analyzer (copied to dist during build)
 - **Database:** SQLite database at `~/.claude/db.sql` for execution tracking
 - **Configuration:** Hook configuration in `configs/hooks-config.json`
@@ -54,6 +54,14 @@ pnpm install
    - `ccm usage` - Token usage and cost analysis wrapper
    - Integrates with external ccusage tool
 
+5. **Memory Discovery System**
+   - `ccm memory` - Displays all Claude Code memory files (CLAUDE.md and CLAUDE.local.md)
+   - Global memory discovery from `~/.claude/` directory for project-independent memories
+   - Recursive upward traversal from cwd to root directory for parent memories
+   - Recursive downward traversal through subtrees for nested memories
+   - Hierarchical display with color-coded categories (global, parent, current, subtree)
+   - Options: --paths-only, --full, --exclude
+
 ### Database Operations
 - All data stored locally in `~/.claude/db.sql`
 - Schema focused on execution metadata, not file contents
@@ -68,6 +76,7 @@ pnpm install
 
 - Database: `~/.claude/db.sql`
 - Claude settings: `~/.claude/settings.json` 
+- Global memories: `~/.claude/CLAUDE.md`, `~/.claude/CLAUDE.local.md`
 - Hook config template: `configs/hooks-config.json`
 - Web analyzer template: `src/templates/analyzer.html`
 

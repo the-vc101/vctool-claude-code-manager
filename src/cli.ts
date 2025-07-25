@@ -11,6 +11,7 @@ import { usageCommand } from './commands/usage';
 import { trackCommand } from './commands/track';
 import { initCommand } from './commands/init';
 import { monitorCommand } from './commands/monitor';
+import { memoryCommand } from './commands/memory';
 
 const packageJsonPath = path.join(__dirname, '../package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -82,5 +83,13 @@ program
   .option('--reverse', 'Reverse sort order')
   .option('--refresh-interval <seconds>', 'Refresh interval in seconds', '2')
   .action(monitorCommand);
+
+program
+  .command('memory')
+  .description('Display all Claude Code memory files (CLAUDE.md and CLAUDE.local.md)')
+  .option('--paths-only', 'Show only file paths without content preview')
+  .option('--full', 'Show full content of all memory files')
+  .option('--exclude <patterns...>', 'Exclude directories from subtree search', [])
+  .action((options) => memoryCommand(options));
 
 program.parse();
