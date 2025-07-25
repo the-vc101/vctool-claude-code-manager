@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Usage Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .header .summary-stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .summary-stat {
+            text-align: center;
+        }
+
+        .summary-stat .value {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        .summary-stat .label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .container {
+            display: flex;
+            height: calc(100vh - 160px);
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #2d2d2d;
+            padding: 20px;
+            border-right: 1px solid #444;
+            overflow-y: auto;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tabs {
+            display: flex;
+            background: #333;
+            border-bottom: 1px solid #444;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            background: #333;
+            color: #ccc;
+            border: none;
+            border-right: 1px solid #444;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .tab:hover {
+            background: #444;
+            color: #fff;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            flex: 1;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        .tab-panel {
+            display: none;
+            height: 100%;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 1em;
+            color: #ccc;
+        }
+
+        .chart-container {
+            background: #2d2d2d;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+        }
+
+        .chart-title {
+            font-size: 1.3em;
+            color: #fff;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .chart-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #333;
+            border-radius: 8px;
+            flex-wrap: wrap;
+        }
+
+        .chart-controls select,
+        .chart-controls button {
+            padding: 8px 12px;
+            background: #444;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .chart-controls select:focus,
+        .chart-controls button:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .chart-controls button:hover {
+            background: #555;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 300px;
+            border: 1px solid #667eea;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 1.2em;
+            color: #667eea;
+        }
+
+        .error {
+            color: #ff6b6b;
+            background: #2d1b1b;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #ff6b6b;
+            text-align: center;
+        }
+
+        .date-range-display {
+            background: #333;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            color: #ccc;
+            margin-bottom: 15px;
+        }
+
+        .model-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .model-card {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .model-name {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .model-details {
+            font-size: 0.9em;
+            color: #ccc;
+        }
+
+        .axis {
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .axis path,
+        .axis line {
+            stroke: #555;
+        }
+
+        .axis text {
+            fill: #ccc;
+        }
+
+        .grid line {
+            stroke: #444;
+            stroke-dasharray: 3,3;
+        }
+
+        .area-chart {
+            fill: rgba(102, 126, 234, 0.3);
+            stroke: #667eea;
+            stroke-width: 2;
+        }
+
+        .line-chart {
+            fill: none;
+            stroke: #667eea;
+            stroke-width: 2;
+        }
+
+        .bar-chart rect {
+            fill: #667eea;
+            transition: fill 0.3s;
+        }
+
+        .bar-chart rect:hover {
+            fill: #8b7bd8;
+        }
+
+        .pie-slice {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .pie-slice:hover {
+            filter: brightness(1.1);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: 150px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-controls {
+                flex-direction: column;
+            }
+
+            .summary-stats {
+                flex-direction: column;
+                gap: 15px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>💰 Claude Usage Dashboard</h1>
+        <p>Interactive analysis of your Claude Code token usage and costs</p>
+        <div class="summary-stats" id="header-stats">
+            <!-- Stats will be populated here -->
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <h3>📊 Quick Stats</h3>
+            <div class="stats-grid" id="sidebar-stats">
+                <!-- Stats will be populated here -->
+            </div>
+
+            <h3>📅 Time Period</h3>
+            <div class="date-range-display" id="date-range">
+                <!-- Date range will be populated here -->
+            </div>
+
+            <h3>🤖 Models</h3>
+            <div id="models-list">
+                <!-- Models will be populated here -->
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('overview')">🏠 Overview</button>
+                <button class="tab" onclick="showTab('trends')">📈 Cost Trends</button>
+                <button class="tab" onclick="showTab('tokens')">🎯 Token Analysis</button>
+                <button class="tab" onclick="showTab('models')">🤖 Models</button>
+                <button class="tab" onclick="showTab('export')">📤 Export</button>
+            </div>
+
+            <div class="tab-content">
+                <div id="overview" class="tab-panel active">
+                    <div class="chart-container">
+                        <div class="chart-title">Daily Usage Overview</div>
+                        <div id="overview-chart"></div>
+                    </div>
+                </div>
+                
+                <div id="trends" class="tab-panel">
+                    <div class="chart-controls">
+                        <select id="trends-type">
+                            <option value="cost">Cost Trends</option>
+                            <option value="tokens">Token Trends</option>
+                            <option value="cumulative">Cumulative Cost</option>
+                        </select>
+                        <select id="trends-period">
+                            <option value="all">All Time</option>
+                            <option value="30d">Last 30 Days</option>
+                            <option value="7d">Last 7 Days</option>
+                        </select>
+                        <button onclick="updateTrends()">Update Chart</button>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title" id="trends-title">Cost Trends Over Time</div>
+                        <div id="trends-chart"></div>
+                    </div>
+                </div>
+                
+                <div id="tokens" class="tab-panel">
+                    <div class="chart-controls">
+                        <select id="token-view">
+                            <option value="breakdown">Token Type Breakdown</option>
+                            <option value="daily">Daily Token Usage</option>
+                            <option value="efficiency">Token Efficiency</option>
+                        </select>
+                        <button onclick="updateTokens()">Update Chart</button>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title" id="tokens-title">Token Usage Analysis</div>
+                        <div id="tokens-chart"></div>
+                    </div>
+                </div>
+                
+                <div id="models" class="tab-panel">
+                    <div class="chart-container">
+                        <div class="chart-title">Model Usage Statistics</div>
+                        <div id="models-chart"></div>
+                    </div>
+                    <div class="model-stats" id="model-details">
+                        <!-- Model details will be populated here -->
+                    </div>
+                </div>
+
+                <div id="export" class="tab-panel">
+                    <div class="chart-container">
+                        <div class="chart-title">Export Data</div>
+                        <div style="text-align: center; padding: 20px;">
+                            <p style="margin-bottom: 20px; color: #ccc;">Export your usage data in various formats</p>
+                            <div class="chart-controls" style="justify-content: center;">
+                                <button onclick="exportData('json')">📄 Export as JSON</button>
+                                <button onclick="exportData('csv')">📊 Export as CSV</button>
+                                <button onclick="printReport()">🖨️ Print Report</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+
+    <script>
+        // Data will be injected here
+        const DATA = /*DATA_PLACEHOLDER*/;
+
+        let tooltip = d3.select("#tooltip");
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 6
+            }).format(value);
+        }
+
+        function formatNumber(value) {
+            if (value >= 1000000) {
+                return (value / 1000000).toFixed(1) + 'M';
+            } else if (value >= 1000) {
+                return (value / 1000).toFixed(1) + 'K';
+            }
+            return value.toLocaleString();
+        }
+
+        function formatDate(dateStr) {
+            return new Date(dateStr).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+
+            // Initialize visualizations
+            setTimeout(() => {
+                switch(tabName) {
+                    case 'overview':
+                        initOverview();
+                        break;
+                    case 'trends':
+                        initTrends();
+                        break;
+                    case 'tokens':
+                        initTokens();
+                        break;
+                    case 'models':
+                        initModels();
+                        break;
+                }
+            }, 100);
+        }
+
+        function initHeader() {
+            // Header stats
+            const headerStats = document.getElementById('header-stats');
+            headerStats.innerHTML = `
+                <div class="summary-stat">
+                    <div class="value">${formatCurrency(DATA.totals.totalCost)}</div>
+                    <div class="label">Total Cost</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="value">${formatNumber(DATA.totals.totalTokens)}</div>
+                    <div class="label">Total Tokens</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="value">${DATA.metadata.totalDays}</div>
+                    <div class="label">Days</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="value">${formatCurrency(DATA.metadata.averageDaily.cost)}</div>
+                    <div class="label">Avg Daily</div>
+                </div>
+            `;
+
+            // Sidebar stats
+            const sidebarStats = document.getElementById('sidebar-stats');
+            sidebarStats.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${formatNumber(DATA.totals.inputTokens)}</div>
+                    <div class="stat-label">Input Tokens</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${formatNumber(DATA.totals.outputTokens)}</div>
+                    <div class="stat-label">Output Tokens</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${formatNumber(DATA.totals.cacheReadTokens)}</div>
+                    <div class="stat-label">Cache Read</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${formatNumber(DATA.totals.cacheCreationTokens)}</div>
+                    <div class="stat-label">Cache Creation</div>
+                </div>
+            `;
+
+            // Date range
+            const dateRange = document.getElementById('date-range');
+            dateRange.innerHTML = `
+                <strong>Period:</strong> ${formatDate(DATA.metadata.dateRange.start)} - ${formatDate(DATA.metadata.dateRange.end)}
+            `;
+
+            // Models list
+            const modelsList = document.getElementById('models-list');
+            modelsList.innerHTML = DATA.metadata.models.map(model => `
+                <div style="padding: 8px; background: #333; margin: 5px 0; border-radius: 4px; font-size: 0.9em;">
+                    ${model}
+                </div>
+            `).join('');
+        }
+
+        function initOverview() {
+            const container = d3.select("#overview-chart");
+            container.selectAll("*").remove();
+
+            const margin = {top: 20, right: 30, bottom: 50, left: 70};
+            const width = container.node().offsetWidth - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+
+            const svg = container.append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // Parse dates and prepare data
+            const data = DATA.daily.map(d => ({
+                date: new Date(d.date),
+                cost: d.totalCost,
+                tokens: d.totalTokens / 1000000 // Convert to millions for better scale
+            }));
+
+            // Scales
+            const xScale = d3.scaleTime()
+                .domain(d3.extent(data, d => d.date))
+                .range([0, width]);
+
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(data, d => Math.max(d.cost, d.tokens))])
+                .range([height, 0]);
+
+            // Grid lines
+            const xGrid = d3.axisBottom(xScale)
+                .tickSize(-height)
+                .tickFormat("");
+
+            const yGrid = d3.axisLeft(yScale)
+                .tickSize(-width)
+                .tickFormat("");
+
+            g.append("g")
+                .attr("class", "grid")
+                .attr("transform", `translate(0,${height})`)
+                .call(xGrid);
+
+            g.append("g")
+                .attr("class", "grid")
+                .call(yGrid);
+
+            // Cost area chart
+            const area = d3.area()
+                .x(d => xScale(d.date))
+                .y0(height)
+                .y1(d => yScale(d.cost))
+                .curve(d3.curveMonotoneX);
+
+            g.append("path")
+                .datum(data)
+                .attr("class", "area-chart")
+                .attr("d", area);
+
+            // Axes
+            g.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale).tickFormat(d3.timeFormat("%m/%d")));
+
+            g.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(yScale).tickFormat(d => `$${d}`));
+
+            // Data points
+            g.selectAll(".dot")
+                .data(data)
+                .enter().append("circle")
+                .attr("class", "dot")
+                .attr("cx", d => xScale(d.date))
+                .attr("cy", d => yScale(d.cost))
+                .attr("r", 4)
+                .attr("fill", "#667eea")
+                .on("mouseover", function(event, d) {
+                    tooltip.style("display", "block")
+                        .html(`
+                            <strong>${formatDate(d.date.toISOString().split('T')[0])}</strong><br/>
+                            Cost: ${formatCurrency(d.cost)}<br/>
+                            Tokens: ${formatNumber(d.tokens * 1000000)}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("display", "none");
+                });
+
+            // Labels
+            g.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 0 - margin.left)
+                .attr("x", 0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .style("fill", "#ccc")
+                .text("Cost ($)");
+
+            g.append("text")
+                .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 10})`)
+                .style("text-anchor", "middle")
+                .style("fill", "#ccc")
+                .text("Date");
+        }
+
+        function initTrends() {
+            updateTrends();
+        }
+
+        function updateTrends() {
+            const type = document.getElementById('trends-type').value;
+            const period = document.getElementById('trends-period').value;
+            
+            const container = d3.select("#trends-chart");
+            container.selectAll("*").remove();
+
+            let data = [...DATA.daily];
+            
+            // Filter by period
+            if (period !== 'all') {
+                const days = period === '7d' ? 7 : 30;
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - days);
+                data = data.filter(d => new Date(d.date) >= cutoff);
+            }
+
+            const margin = {top: 20, right: 30, bottom: 50, left: 80};
+            const width = container.node().offsetWidth - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+
+            const svg = container.append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // Prepare data based on type
+            let chartData, yLabel;
+            if (type === 'cost') {
+                chartData = data.map(d => ({
+                    date: new Date(d.date),
+                    value: d.totalCost
+                }));
+                yLabel = 'Cost ($)';
+            } else if (type === 'tokens') {
+                chartData = data.map(d => ({
+                    date: new Date(d.date),
+                    value: d.totalTokens
+                }));
+                yLabel = 'Tokens';
+            } else if (type === 'cumulative') {
+                let cumulative = 0;
+                chartData = data.map(d => {
+                    cumulative += d.totalCost;
+                    return {
+                        date: new Date(d.date),
+                        value: cumulative
+                    };
+                });
+                yLabel = 'Cumulative Cost ($)';
+            }
+
+            // Update title
+            document.getElementById('trends-title').textContent = 
+                type === 'cost' ? 'Cost Trends Over Time' :
+                type === 'tokens' ? 'Token Usage Over Time' :
+                'Cumulative Cost Over Time';
+
+            // Scales
+            const xScale = d3.scaleTime()
+                .domain(d3.extent(chartData, d => d.date))
+                .range([0, width]);
+
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(chartData, d => d.value)])
+                .range([height, 0]);
+
+            // Line generator
+            const line = d3.line()
+                .x(d => xScale(d.date))
+                .y(d => yScale(d.value))
+                .curve(d3.curveMonotoneX);
+
+            // Grid
+            g.append("g")
+                .attr("class", "grid")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale).tickSize(-height).tickFormat(""));
+
+            g.append("g")
+                .attr("class", "grid")
+                .call(d3.axisLeft(yScale).tickSize(-width).tickFormat(""));
+
+            // Line
+            g.append("path")
+                .datum(chartData)
+                .attr("class", "line-chart")
+                .attr("d", line);
+
+            // Points
+            g.selectAll(".point")
+                .data(chartData)
+                .enter().append("circle")
+                .attr("class", "point")
+                .attr("cx", d => xScale(d.date))
+                .attr("cy", d => yScale(d.value))
+                .attr("r", 4)
+                .attr("fill", "#667eea")
+                .on("mouseover", function(event, d) {
+                    const value = type === 'tokens' ? formatNumber(d.value) : formatCurrency(d.value);
+                    tooltip.style("display", "block")
+                        .html(`
+                            <strong>${formatDate(d.date.toISOString().split('T')[0])}</strong><br/>
+                            ${yLabel}: ${value}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("display", "none");
+                });
+
+            // Axes
+            g.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale).tickFormat(d3.timeFormat("%m/%d")));
+
+            g.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(yScale).tickFormat(d => 
+                    type === 'tokens' ? formatNumber(d) : `$${d}`));
+
+            // Labels
+            g.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 0 - margin.left)
+                .attr("x", 0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .style("fill", "#ccc")
+                .text(yLabel);
+        }
+
+        function initTokens() {
+            updateTokens();
+        }
+
+        function updateTokens() {
+            const view = document.getElementById('token-view').value;
+            const container = d3.select("#tokens-chart");
+            container.selectAll("*").remove();
+
+            if (view === 'breakdown') {
+                drawTokenBreakdown(container);
+            } else if (view === 'daily') {
+                drawDailyTokens(container);
+            } else if (view === 'efficiency') {
+                drawTokenEfficiency(container);
+            }
+        }
+
+        function drawTokenBreakdown(container) {
+            document.getElementById('tokens-title').textContent = 'Token Type Breakdown';
+
+            const width = 400;
+            const height = 400;
+            const radius = Math.min(width, height) / 2;
+
+            const svg = container.append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .style("margin", "0 auto")
+                .style("display", "block");
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${width/2},${height/2})`);
+
+            const tokenData = [
+                { label: 'Input', value: DATA.totals.inputTokens, color: '#667eea' },
+                { label: 'Output', value: DATA.totals.outputTokens, color: '#764ba2' },
+                { label: 'Cache Read', value: DATA.totals.cacheReadTokens, color: '#48bb78' },
+                { label: 'Cache Creation', value: DATA.totals.cacheCreationTokens, color: '#ed8936' }
+            ];
+
+            const pie = d3.pie()
+                .value(d => d.value)
+                .sort(null);
+
+            const arc = d3.arc()
+                .innerRadius(60)
+                .outerRadius(radius - 10);
+
+            const arcs = g.selectAll(".pie-slice")
+                .data(pie(tokenData))
+                .enter().append("g")
+                .attr("class", "pie-slice");
+
+            arcs.append("path")
+                .attr("d", arc)
+                .attr("fill", d => d.data.color)
+                .on("mouseover", function(event, d) {
+                    tooltip.style("display", "block")
+                        .html(`
+                            <strong>${d.data.label}</strong><br/>
+                            Tokens: ${formatNumber(d.data.value)}<br/>
+                            Percentage: ${(d.data.value / DATA.totals.totalTokens * 100).toFixed(1)}%
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("display", "none");
+                });
+
+            // Legend
+            const legend = svg.append("g")
+                .attr("transform", `translate(${width - 120}, 20)`);
+
+            const legendItems = legend.selectAll(".legend-item")
+                .data(tokenData)
+                .enter().append("g")
+                .attr("class", "legend-item")
+                .attr("transform", (d, i) => `translate(0, ${i * 25})`);
+
+            legendItems.append("rect")
+                .attr("width", 15)
+                .attr("height", 15)
+                .attr("fill", d => d.color);
+
+            legendItems.append("text")
+                .attr("x", 20)
+                .attr("y", 12)
+                .style("font-size", "12px")
+                .style("fill", "#ccc")
+                .text(d => d.label);
+        }
+
+        function drawDailyTokens(container) {
+            document.getElementById('tokens-title').textContent = 'Daily Token Usage';
+
+            const margin = {top: 20, right: 30, bottom: 50, left: 80};
+            const width = container.node().offsetWidth - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+
+            const svg = container.append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const data = DATA.daily.map(d => ({
+                date: new Date(d.date),
+                input: d.inputTokens,
+                output: d.outputTokens,
+                cacheRead: d.cacheReadTokens,
+                cacheCreation: d.cacheCreationTokens
+            }));
+
+            const xScale = d3.scaleBand()
+                .domain(data.map(d => d.date))
+                .range([0, width])
+                .padding(0.1);
+
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(data, d => d.input + d.output + d.cacheRead + d.cacheCreation)])
+                .range([height, 0]);
+
+            // Stacked data
+            const stack = d3.stack()
+                .keys(['input', 'output', 'cacheRead', 'cacheCreation']);
+
+            const stackedData = stack(data);
+            const colors = ['#667eea', '#764ba2', '#48bb78', '#ed8936'];
+
+            // Bars
+            g.selectAll(".bar-group")
+                .data(stackedData)
+                .enter().append("g")
+                .attr("class", "bar-group")
+                .attr("fill", (d, i) => colors[i])
+                .selectAll("rect")
+                .data(d => d)
+                .enter().append("rect")
+                .attr("x", d => xScale(d.data.date))
+                .attr("y", d => yScale(d[1]))
+                .attr("height", d => yScale(d[0]) - yScale(d[1]))
+                .attr("width", xScale.bandwidth())
+                .on("mouseover", function(event, d) {
+                    const tokenTypes = ['input', 'output', 'cacheRead', 'cacheCreation'];
+                    const labels = ['Input', 'Output', 'Cache Read', 'Cache Creation'];
+                    const values = tokenTypes.map(type => d.data[type]);
+                    
+                    tooltip.style("display", "block")
+                        .html(`
+                            <strong>${formatDate(d.data.date.toISOString().split('T')[0])}</strong><br/>
+                            ${labels.map((label, i) => `${label}: ${formatNumber(values[i])}`).join('<br/>')}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("display", "none");
+                });
+
+            // Axes
+            g.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale).tickFormat(d3.timeFormat("%m/%d")));
+
+            g.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(yScale).tickFormat(formatNumber));
+        }
+
+        function drawTokenEfficiency(container) {
+            document.getElementById('tokens-title').textContent = 'Token Efficiency (Cost per Token)';
+
+            const margin = {top: 20, right: 30, bottom: 50, left: 80};
+            const width = container.node().offsetWidth - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+
+            const svg = container.append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const data = DATA.daily.map(d => ({
+                date: new Date(d.date),
+                efficiency: d.totalCost / d.totalTokens * 1000000 // Cost per million tokens
+            }));
+
+            const xScale = d3.scaleTime()
+                .domain(d3.extent(data, d => d.date))
+                .range([0, width]);
+
+            const yScale = d3.scaleLinear()
+                .domain(d3.extent(data, d => d.efficiency))
+                .range([height, 0]);
+
+            const line = d3.line()
+                .x(d => xScale(d.date))
+                .y(d => yScale(d.efficiency))
+                .curve(d3.curveMonotoneX);
+
+            g.append("path")
+                .datum(data)
+                .attr("class", "line-chart")
+                .attr("d", line);
+
+            g.selectAll(".point")
+                .data(data)
+                .enter().append("circle")
+                .attr("cx", d => xScale(d.date))
+                .attr("cy", d => yScale(d.efficiency))
+                .attr("r", 4)
+                .attr("fill", "#667eea")
+                .on("mouseover", function(event, d) {
+                    tooltip.style("display", "block")
+                        .html(`
+                            <strong>${formatDate(d.date.toISOString().split('T')[0])}</strong><br/>
+                            Cost per 1M tokens: ${formatCurrency(d.efficiency)}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("display", "none");
+                });
+
+            // Axes
+            g.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale).tickFormat(d3.timeFormat("%m/%d")));
+
+            g.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(yScale).tickFormat(d => formatCurrency(d)));
+
+            // Labels
+            g.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 0 - margin.left)
+                .attr("x", 0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .style("fill", "#ccc")
+                .text("Cost per 1M Tokens ($)");
+        }
+
+        function initModels() {
+            const container = d3.select("#models-chart");
+            container.selectAll("*").remove();
+
+            // Calculate model statistics
+            const modelStats = {};
+            DATA.daily.forEach(day => {
+                day.modelBreakdowns.forEach(model => {
+                    if (!modelStats[model.modelName]) {
+                        modelStats[model.modelName] = {
+                            totalCost: 0,
+                            totalTokens: 0,
+                            days: 0
+                        };
+                    }
+                    modelStats[model.modelName].totalCost += model.cost;
+                    modelStats[model.modelName].totalTokens += 
+                        model.inputTokens + model.outputTokens + 
+                        model.cacheCreationTokens + model.cacheReadTokens;
+                    modelStats[model.modelName].days++;
+                });
+            });
+
+            // Create model details
+            const modelDetails = document.getElementById('model-details');
+            modelDetails.innerHTML = Object.entries(modelStats).map(([modelName, stats]) => `
+                <div class="model-card">
+                    <div class="model-name">${modelName}</div>
+                    <div class="model-details">
+                        <div>Total Cost: ${formatCurrency(stats.totalCost)}</div>
+                        <div>Total Tokens: ${formatNumber(stats.totalTokens)}</div>
+                        <div>Days Used: ${stats.days} / ${DATA.metadata.totalDays}</div>
+                        <div>Avg Daily Cost: ${formatCurrency(stats.totalCost / stats.days)}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Create model usage chart
+            const modelData = Object.entries(modelStats).map(([name, stats]) => ({
+                name,
+                cost: stats.totalCost,
+                tokens: stats.totalTokens
+            }));
+
+            const margin = {top: 20, right: 30, bottom: 80, left: 100};
+            const width = container.node().offsetWidth - margin.left - margin.right;
+            const height = 300 - margin.top - margin.bottom;
+
+            const svg = container.append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom);
+
+            const g = svg.append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const xScale = d3.scaleBand()
+                .domain(modelData.map(d => d.name))
+                .range([0, width])
+                .padding(0.2);
+
+            const yScale = d3.scaleLinear()
+                .domain([0, d3.max(modelData, d => d.cost)])
+                .range([height, 0]);
+
+            // Bars
+            g.selectAll(".bar")
+                .data(modelData)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => xScale(d.name))
+                .attr("y", d => yScale(d.cost))
+                .attr("width", xScale.bandwidth())
+                .attr("height", d => height - yScale(d.cost))
+                .attr("fill", "#667eea")
+                .on("mouseover", function(event, d) {
+                    tooltip.style("display", "block")
+                        .html(`
+                            <strong>${d.name}</strong><br/>
+                            Cost: ${formatCurrency(d.cost)}<br/>
+                            Tokens: ${formatNumber(d.tokens)}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("display", "none");
+                });
+
+            // Axes
+            g.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(xScale))
+                .selectAll("text")
+                .style("text-anchor", "end")
+                .attr("dx", "-.8em")
+                .attr("dy", ".15em")
+                .attr("transform", "rotate(-45)");
+
+            g.append("g")
+                .attr("class", "axis")
+                .call(d3.axisLeft(yScale).tickFormat(d => formatCurrency(d)));
+        }
+
+        function exportData(format) {
+            const dataStr = format === 'json' 
+                ? JSON.stringify(DATA, null, 2)
+                : generateCSV();
+            
+            const blob = new Blob([dataStr], { type: format === 'json' ? 'application/json' : 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `claude-usage-${new Date().toISOString().split('T')[0]}.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function generateCSV() {
+            const headers = ['Date', 'Input Tokens', 'Output Tokens', 'Cache Creation', 'Cache Read', 'Total Tokens', 'Total Cost', 'Models'];
+            const rows = DATA.daily.map(day => [
+                day.date,
+                day.inputTokens,
+                day.outputTokens,
+                day.cacheCreationTokens,
+                day.cacheReadTokens,
+                day.totalTokens,
+                day.totalCost.toFixed(6),
+                `"${day.modelsUsed.join(', ')}"`
+            ]);
+            
+            return [headers, ...rows].map(row => row.join(',')).join('\n');
+        }
+
+        function printReport() {
+            window.print();
+        }
+
+        // Initialize the app
+        window.onload = function() {
+            initHeader();
+            initOverview();
+        };
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            const activeTab = document.querySelector('.tab.active').textContent;
+            setTimeout(() => {
+                if (activeTab.includes('Overview')) {
+                    initOverview();
+                } else if (activeTab.includes('Trends')) {
+                    updateTrends();
+                } else if (activeTab.includes('Token')) {
+                    updateTokens();
+                } else if (activeTab.includes('Models')) {
+                    initModels();
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>

@@ -12,6 +12,7 @@ import { trackCommand } from './commands/track';
 import { initCommand } from './commands/init';
 import { monitorCommand } from './commands/monitor';
 import { memoryCommand } from './commands/memory';
+import { dashboardCommand } from './commands/dashboard';
 
 const packageJsonPath = path.join(__dirname, '../package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -91,5 +92,12 @@ program
   .option('--full', 'Show full content of all memory files')
   .option('--exclude <patterns...>', 'Exclude directories from subtree search', [])
   .action((options) => memoryCommand(options));
+
+program
+  .command('dashboard')
+  .description('Interactive usage analytics dashboard for Claude Code token usage and costs')
+  .option('--export <path>', 'Export data to file instead of opening dashboard')
+  .option('--format <format>', 'Export format: json, csv (requires --export)', 'json')
+  .action(dashboardCommand);
 
 program.parse();
