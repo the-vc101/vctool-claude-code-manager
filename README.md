@@ -7,6 +7,7 @@ A CLI tool for managing Claude Code workflows with automatic execution tracking 
 ```bash
 npm install -g claude-code-manager
 ccm init
+ccm dashboard                   # Open usage analytics dashboard
 ```
 
 ## Features
@@ -14,6 +15,7 @@ ccm init
 - 📈 **Automatic Execution Tracking** - Zero config, works immediately
 - 🔍 **Interactive Web Analyzer** - Timeline visualization with D3.js
 - 📊 **Session Analytics** - Project breakdowns and conversation history
+- 💰 **Usage Analytics Dashboard** - Interactive token usage and cost visualization
 - 🛠️ **Real-time Task Monitoring** - htop-like interface for Claude Code tasks
 
 ## Commands
@@ -97,6 +99,44 @@ ccm usage blocks --live    # Real-time dashboard
 - `--breakdown` - Show per-model costs
 - `--json` - JSON output
 
+**💡 Tip:** Use `ccm dashboard` for interactive visualization of usage data with charts and analytics.
+
+</details>
+
+<details>
+<summary><code>ccm dashboard</code> - Interactive Usage Analytics</summary>
+
+Interactive web-based dashboard for Claude Code token usage and cost visualization with smart data management.
+
+```bash
+ccm dashboard                    # Open interactive dashboard
+ccm dashboard --refresh          # Force refresh data before opening
+ccm dashboard --export data.json # Export processed data
+```
+
+**Key Features:**
+- 📊 **Smart Data Management** - Auto-fetches fresh usage data (1-hour cache)
+- 📈 **Multiple Chart Types** - Daily trends, token breakdowns, model statistics
+- 🎯 **Interactive Visualizations** - D3.js charts with zoom, filter, and hover details
+- 📤 **Export Options** - JSON and CSV formats for further analysis
+
+**Dashboard Tabs:**
+- **Overview** - Daily cost/token summary with area charts
+- **Cost Trends** - Time series analysis with period filtering
+- **Token Analysis** - Pie charts, stacked bars, and efficiency metrics
+- **Models** - Model usage statistics and cost breakdowns
+- **Export** - Data export and print functionality
+
+**Options:**
+- `--export <path>` - Export data instead of opening dashboard
+- `--format <format>` - Export format: json, csv (default: json)
+- `--refresh` - Force refresh usage data from ccusage
+
+**Data Flow:**
+- Automatically calls `ccm usage --json` when data is stale (>1 hour)
+- Uses cached `.data/usage.json` for recent data to improve performance
+- Graceful fallback to cached data if refresh fails
+
 </details>
 
 <details>
@@ -142,6 +182,7 @@ ccm track                  # Internal tracking (auto-used)
 **Data Storage:**
 - Database: `~/.claude/db.sql` (local SQLite)
 - Config: `~/.claude/settings.json` (auto-configured)
+- Usage Cache: `.data/usage.json` (1-hour smart caching for dashboard)
 
 ## Links
 

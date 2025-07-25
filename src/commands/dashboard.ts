@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import chalk from 'chalk';
+import { spawn } from 'child_process';
+import { promisify } from 'util';
 
 interface UsageDay {
   date: string;
@@ -59,15 +61,150 @@ interface ProcessedUsageData {
   };
 }
 
-function findUsageDataFile(): string | null {
+interface DataFreshness {
+  exists: boolean;
+  path: string;
+  age?: number; // in minutes
+  needsRefresh: boolean;
+}
+
+function checkDataFreshness(): DataFreshness {
   const currentDir = process.cwd();
   const usageFilePath = path.join(currentDir, '.data', 'usage.json');
   
-  if (fs.existsSync(usageFilePath)) {
-    return usageFilePath;
+  if (!fs.existsSync(usageFilePath)) {
+    return {
+      exists: false,
+      path: usageFilePath,
+      needsRefresh: true
+    };
   }
   
-  return null;
+  const stats = fs.statSync(usageFilePath);
+  const ageInMinutes = (Date.now() - stats.mtime.getTime()) / (1000 * 60);
+  const needsRefresh = ageInMinutes > 60; // Refresh if older than 1 hour
+  
+  return {
+    exists: true,
+    path: usageFilePath,
+    age: ageInMinutes,
+    needsRefresh
+  };
+}
+
+async function refreshUsageData(outputPath: string): Promise<boolean> {
+  console.log(chalk.blue('🔄 Fetching latest usage data...'));
+  
+  return new Promise((resolve) => {
+    // Ensure the .data directory exists
+    const dataDir = path.dirname(outputPath);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // Call ccusage directly instead of through ccm wrapper
+    // This avoids the complex dependency checking and should be faster
+    const child = spawn('npx', ['ccusage', '--json'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true
+    });
+    
+    let jsonOutput = '';
+    let errorOutput = '';
+    
+    // Set a timeout for the operation
+    const timeout = setTimeout(() => {
+      console.log(chalk.yellow('⏱️  ccusage is taking longer than expected...'));
+      child.kill();
+      resolve(false);
+    }, 30000); // 30 second timeout
+    
+    child.stdout?.on('data', (data) => {
+      jsonOutput += data.toString();
+    });
+    
+    child.stderr?.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+    
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      
+      if (code === 0 && jsonOutput.trim()) {
+        try {
+          // Validate JSON format
+          const parsedData = JSON.parse(jsonOutput);
+          
+          // Write to file
+          fs.writeFileSync(outputPath, jsonOutput, 'utf8');
+          console.log(chalk.green('✅ Usage data refreshed successfully'));
+          resolve(true);
+        } catch (error) {
+          console.log(chalk.red('❌ Failed to parse usage data JSON'));
+          console.log(chalk.gray(`Error: ${error}`));
+          resolve(false);
+        }
+      } else {
+        console.log(chalk.red('❌ Failed to fetch usage data'));
+        if (errorOutput) {
+          console.log(chalk.gray(`Error: ${errorOutput.trim()}`));
+        }
+        if (code === null) {
+          console.log(chalk.yellow('💡 ccusage operation was cancelled due to timeout'));
+        }
+        resolve(false);
+      }
+    });
+    
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      console.log(chalk.red('❌ Failed to execute ccusage command'));
+      console.log(chalk.gray(`Error: ${error.message}`));
+      console.log(chalk.yellow('💡 Make sure ccusage is installed: npm install -g ccusage'));
+      resolve(false);
+    });
+  });
+}
+
+async function getUsageData(forceRefresh: boolean = false): Promise<{ data: UsageData; path: string } | null> {
+  const freshness = checkDataFreshness();
+  
+  // Check if we need to refresh data
+  if (forceRefresh || freshness.needsRefresh) {
+    if (freshness.exists && freshness.age !== undefined) {
+      const ageDisplay = freshness.age < 60 
+        ? `${Math.round(freshness.age)} minutes` 
+        : `${Math.round(freshness.age / 60)} hours`;
+      console.log(chalk.yellow(`📅 Usage data is ${ageDisplay} old, refreshing...`));
+    } else {
+      console.log(chalk.yellow('📊 No usage data found, fetching...'));
+    }
+    
+    const refreshSuccess = await refreshUsageData(freshness.path);
+    
+    if (!refreshSuccess && !freshness.exists) {
+      // Failed to refresh and no cached data available
+      return null;
+    } else if (!refreshSuccess && freshness.exists) {
+      // Failed to refresh but have cached data
+      console.log(chalk.yellow('⚠️  Using cached usage data due to refresh failure'));
+    }
+  } else if (freshness.exists) {
+    const ageDisplay = freshness.age! < 60 
+      ? `${Math.round(freshness.age!)} minutes` 
+      : `${Math.round(freshness.age! / 60)} hours`;
+    console.log(chalk.green(`📊 Using cached usage data (${ageDisplay} old)`));
+  }
+  
+  // Read the data file
+  try {
+    const rawData = fs.readFileSync(freshness.path, 'utf8');
+    const usageData: UsageData = JSON.parse(rawData);
+    return { data: usageData, path: freshness.path };
+  } catch (error) {
+    console.error(chalk.red('Error reading usage data file:'), error);
+    return null;
+  }
 }
 
 function processUsageData(rawData: UsageData): ProcessedUsageData {
@@ -251,20 +388,21 @@ async function generateDashboard(data: ProcessedUsageData): Promise<void> {
   }
 }
 
-export async function dashboardCommand(options: { export?: string; format?: string }) {
+export async function dashboardCommand(options: { export?: string; format?: string; refresh?: boolean }) {
   try {
-    // Find usage data file
-    const usageFilePath = findUsageDataFile();
-    if (!usageFilePath) {
-      console.error(chalk.red('Error: Could not find usage data file'));
-      console.error(chalk.yellow('Expected location: .data/usage.json'));
-      console.error(chalk.yellow('Make sure you have generated usage data first'));
+    // Get usage data (with smart caching and auto-refresh)
+    const result = await getUsageData(options.refresh);
+    if (!result) {
+      console.error(chalk.red('Error: Could not get usage data'));
+      console.error(chalk.yellow('This could be due to:'));
+      console.error(chalk.yellow('• ccusage tool not available or configured'));
+      console.error(chalk.yellow('• No Claude usage data available'));
+      console.error(chalk.yellow('• Permission issues writing to .data directory'));
+      console.error(chalk.gray('\nTry running: ccm usage --json first to debug'));
       process.exit(1);
     }
     
-    // Read and parse usage data
-    const rawData = fs.readFileSync(usageFilePath, 'utf8');
-    const usageData: UsageData = JSON.parse(rawData);
+    const { data: usageData, path: usageFilePath } = result;
     
     if (!usageData.daily || usageData.daily.length === 0) {
       console.error(chalk.red('Error: No usage data found'));
